@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /auth/
+Disallow: /dashboard/
+Disallow: /profile/
+Disallow: /orders/
+Disallow: /cart/
+Disallow: /checkout/
+
+Sitemap: https://tamimparfume.com/sitemap.xml

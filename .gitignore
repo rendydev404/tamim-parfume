@@ -20,6 +20,7 @@
 # production
 /build
 
+/supabase
 # misc
 .DS_Store
 *.pem
