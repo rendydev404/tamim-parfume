@@ -43,7 +43,9 @@ export default async function AdminProductsPage() {
             {products?.map((product) => {
               // Get primary image or first image
               const productImages = (product.images as { url: string; is_primary: boolean; sort_order: number }[]) || []
-              const primaryImage = productImages.find(img => img.is_primary) || productImages[0]
+              const isVid = (url: string) => url && (/\.(mp4|webm|ogg|mov)$/i.test(url) || url.includes('video') || url.includes('.mp4'))
+              const nonVidImg = productImages.find(img => !isVid(img.url))
+              const primaryImage = nonVidImg || productImages.find(img => img.is_primary) || productImages[0]
 
               return (
                 <tr key={product.id}>

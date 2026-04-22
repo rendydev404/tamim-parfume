@@ -165,19 +165,28 @@ export default async function ProductDetailPage({ params }: Props) {
             </div>
 
             {/* Client-side: Price, Variants, Stock, Description, Add to Cart */}
-            <ProductDetailClient
-              product={{
-                id: product.id,
-                name: product.name,
-                price: product.price,
-                compare_price: product.compare_price,
-                stock: product.stock,
-                weight: product.weight,
-                image: sortedImages[0]?.url || null,
-                short_description: product.short_description,
-              }}
-              variants={variants}
-            />
+            {(() => {
+              const isVid = (url: string) => url && (/\.(mp4|webm|ogg|mov)$/i.test(url) || url.includes('video') || url.includes('.mp4'));
+              const firstImg = sortedImages[0]?.url || null;
+              const nonVidImg = sortedImages.find((img: any) => !isVid(img.url))?.url;
+              const cartImage = nonVidImg || firstImg;
+
+              return (
+                <ProductDetailClient
+                  product={{
+                    id: product.id,
+                    name: product.name,
+                    price: product.price,
+                    compare_price: product.compare_price,
+                    stock: product.stock,
+                    weight: product.weight,
+                    image: cartImage,
+                    short_description: product.short_description,
+                  }}
+                  variants={variants}
+                />
+              )
+            })()}
 
             {/* Trust badges */}
             <div style={{

@@ -4,6 +4,7 @@ import { formatRupiah, formatDateTime } from '@/lib/utils'
 import { ORDER_STATUS } from '@/lib/constants'
 import OrderTimeline from '@/components/order/OrderTimeline'
 import TrackingPanel from '@/components/order/TrackingPanel'
+import ReturnOrderButton from '@/components/order/ReturnOrderButton'
 import Link from 'next/link'
 import { ArrowLeft, Package, MapPin, CreditCard, Droplets, FileText, XCircle, Clock, Wallet, ShoppingBag } from 'lucide-react'
 import CancelOrderButton from '@/components/order/CancelOrderButton'
@@ -38,6 +39,13 @@ export default async function OrderDetailPage({ params }: Props) {
     .select('*')
     .eq('order_id', order.id)
     .single()
+
+  // Get return info if requested
+  const { data: returnRequest } = await supabase
+    .from('returns')
+    .select('*')
+    .eq('order_id', order.id)
+    .maybeSingle()
 
   const status = ORDER_STATUS[order.status] || { label: order.status, color: '#999' }
 
@@ -146,6 +154,11 @@ export default async function OrderDetailPage({ params }: Props) {
         </div>
       )}
 
+      {/* Return order button */}
+      {order.status === 'delivered' && (
+        <ReturnOrderButton orderId={order.id} deliveredAt={order.delivered_at} />
+      )}
+
       {/* Cancellation info */}
       {order.status === 'cancelled' && order.cancel_reason && (
         <div className="card" style={{ padding: '16px 20px', marginBottom: '16px', borderLeft: '3px solid var(--color-error)' }}>
@@ -158,6 +171,34 @@ export default async function OrderDetailPage({ params }: Props) {
             <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
               Dibatalkan pada {formatDateTime(order.cancelled_at)}
             </p>
+          )}
+        </div>
+      )}
+
+      {/* Return Request Info */}
+      {returnRequest && (
+        <div className="card" style={{ padding: '16px 20px', marginBottom: '16px', borderLeft: `3px solid ${returnRequest.status === 'rejected' ? 'var(--color-error)' : returnRequest.status === 'approved' ? 'var(--color-success)' : 'var(--color-warning)'}` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+            <XCircle size={16} style={{ color: returnRequest.status === 'rejected' ? 'var(--color-error)' : returnRequest.status === 'approved' ? 'var(--color-success)' : 'var(--color-warning)' }} />
+            <span style={{ fontSize: '13px', fontWeight: 600, color: returnRequest.status === 'rejected' ? 'var(--color-error)' : returnRequest.status === 'approved' ? 'var(--color-success)' : 'var(--color-warning-dark)' }}>
+              Status Pengajuan Retur: {returnRequest.status === 'pending' ? 'Menunggu Review Admin' : returnRequest.status === 'approved' ? 'Retur Disetujui' : returnRequest.status === 'completed' ? 'Retur Selesai (Refunded)' : 'Retur Ditolak'}
+            </span>
+          </div>
+          
+          <div style={{ fontSize: '13px', color: 'var(--color-text-secondary)', marginBottom: returnRequest.admin_notes ? '12px' : '0' }}>
+            <strong>Alasan Anda:</strong> {returnRequest.reason}
+          </div>
+
+          {returnRequest.admin_notes && (
+            <div style={{ background: 'var(--color-bg-secondary)', padding: '10px', borderRadius: '8px', fontSize: '13px' }}>
+              <strong>Catatan Admin:</strong> {returnRequest.admin_notes}
+            </div>
+          )}
+
+          {returnRequest.status === 'approved' && !returnRequest.return_tracking_number && (
+            <div style={{ marginTop: '12px', padding: '12px', background: 'var(--color-bg-tertiary)', border: '1px solid var(--color-border)', borderRadius: '8px' }}>
+              <p style={{ fontSize: '13px', margin: '0 0 8px 0' }}><strong>Tindakan Diperlukan:</strong> Mohon kirimkan barang retur ke alamat toko kami dan hubungi admin untuk konfirmasi nomor resi pengiriman Anda.</p>
+            </div>
           )}
         </div>
       )}
@@ -193,15 +234,21 @@ export default async function OrderDetailPage({ params }: Props) {
                 overflow: 'hidden',
                 border: '1px solid var(--color-border-light)',
               }}>
-                {displayImage ? (
-                  <img
-                    src={displayImage}
-                    alt={displayName}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  />
-                ) : (
-                  <Droplets size={24} style={{ color: 'var(--color-text-muted)', opacity: 0.4 }} />
-                )}
+                {(() => {
+                  const isVid = (url: string) => url && (/\.(mp4|webm|ogg|mov)$/i.test(url) || url.includes('video') || url.includes('.mp4'));
+                  let displayImg = displayImage;
+                  
+                  if (displayImg && isVid(displayImg)) {
+                    const nonVidImg = productImages.find((img: any) => !isVid(img.url));
+                    displayImg = nonVidImg?.url || displayImg;
+                  }
+
+                  return displayImg ? (
+                    <img src={displayImg} alt={displayName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <Droplets size={24} style={{ color: 'var(--color-text-muted)', opacity: 0.4 }} />
+                  );
+                })()}
               </div>
 
               {/* Product details */}

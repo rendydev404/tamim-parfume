@@ -24,11 +24,15 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  const results = (products || []).map((p) => ({
-    ...p,
-    image: p.images?.find((i: { is_primary: boolean }) => i.is_primary)?.url || p.images?.[0]?.url || null,
-    images: undefined,
-  }))
+  const results = (products || []).map((p) => {
+    const isVid = (url: string) => url && (/\.(mp4|webm|ogg|mov)$/i.test(url) || url.includes('video') || url.includes('.mp4'))
+    const nonVidImg = p.images?.find((i: any) => !isVid(i.url))?.url
+    return {
+      ...p,
+      image: nonVidImg || p.images?.find((i: { is_primary: boolean }) => i.is_primary)?.url || p.images?.[0]?.url || null,
+      images: undefined,
+    }
+  })
 
   return NextResponse.json({ data: results })
 }

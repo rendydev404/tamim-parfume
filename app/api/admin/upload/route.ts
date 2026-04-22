@@ -22,9 +22,11 @@ export async function POST(request: Request) {
     }
 
     // Validate file type
-    if (!file.type.startsWith('image/')) {
+    const isImage = file.type.startsWith('image/')
+    const isVideo = file.type.startsWith('video/')
+    if (!isImage && !isVideo) {
       return NextResponse.json(
-        { success: false, error: 'Only image files are allowed' },
+        { success: false, error: 'Only image and video files are allowed' },
         { status: 400 }
       )
     }
@@ -39,25 +41,35 @@ export async function POST(request: Request) {
 
     const buffer = Buffer.from(await file.arrayBuffer())
 
-    // Convert to WebP with optimization
-    const webpBuffer = await sharp(buffer)
-      .webp({ quality: 82 })
-      .resize(1200, 1200, {
-        fit: 'inside',
-        withoutEnlargement: true,
-      })
-      .toBuffer()
-
-    // Generate unique filename
+    let finalBuffer: any = buffer
+    let filename = ''
+    let contentType = ''
+    
     const timestamp = Date.now()
     const random = Math.random().toString(36).substring(2, 8)
-    const filename = `${folder}/${timestamp}-${random}.webp`
+
+    if (isImage) {
+      // Convert to WebP with optimization
+      finalBuffer = await sharp(buffer)
+        .webp({ quality: 82 })
+        .resize(1200, 1200, {
+          fit: 'inside',
+          withoutEnlargement: true,
+        })
+        .toBuffer()
+      filename = `${folder}/${timestamp}-${random}.webp`
+      contentType = 'image/webp'
+    } else if (isVideo) {
+      const ext = file.name.split('.').pop()?.toLowerCase() || 'mp4'
+      filename = `${folder}/${timestamp}-${random}.${ext}`
+      contentType = file.type
+    }
 
     // Upload to Supabase Storage
     const { data, error } = await supabaseAdmin.storage
       .from('products')
-      .upload(filename, webpBuffer, {
-        contentType: 'image/webp',
+      .upload(filename, finalBuffer, {
+        contentType: contentType,
         cacheControl: '31536000', // 1 year cache
         upsert: false,
       })
@@ -80,9 +92,9 @@ export async function POST(request: Request) {
       data: {
         url: urlData.publicUrl,
         path: data.path,
-        size: webpBuffer.length,
+        size: finalBuffer.length,
         originalSize: buffer.length,
-        savings: Math.round((1 - webpBuffer.length / buffer.length) * 100),
+        savings: Math.round((1 - finalBuffer.length / buffer.length) * 100),
       },
     })
   } catch (error) {

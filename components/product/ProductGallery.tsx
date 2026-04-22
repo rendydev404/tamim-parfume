@@ -40,6 +40,10 @@ export default function ProductGallery({ images, productName, discount }: Props)
     else setActiveIndex(index)
   }
 
+  const isVideo = (url: string) => {
+    return /\.(mp4|webm|ogg|mov)$/i.test(url) || url.includes('video') || url.includes('.mp4')
+  }
+
   return (
     <div>
       {/* Main Image */}
@@ -50,16 +54,33 @@ export default function ProductGallery({ images, productName, discount }: Props)
         overflow: 'hidden',
         background: 'var(--color-bg-secondary)',
       }}>
-        <img
-          src={images[activeIndex].url}
-          alt={images[activeIndex].alt || `${productName} - Foto ${activeIndex + 1}`}
-          style={{
-            width: '100%',
-            height: '100%',
-            objectFit: 'cover',
-            transition: 'opacity 0.2s ease',
-          }}
-        />
+        {isVideo(images[activeIndex].url) ? (
+          <video
+            src={images[activeIndex].url}
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              transition: 'opacity 0.2s ease',
+            }}
+            muted
+            loop
+            playsInline
+            autoPlay
+            controls
+          />
+        ) : (
+          <img
+            src={images[activeIndex].url}
+            alt={images[activeIndex].alt || `${productName} - Foto ${activeIndex + 1}`}
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              transition: 'opacity 0.2s ease',
+            }}
+          />
+        )}
 
         {/* Discount badge */}
         {discount && discount > 0 && (
@@ -174,11 +195,20 @@ export default function ProductGallery({ images, productName, discount }: Props)
                 background: 'none',
               }}
             >
-              <img
-                src={img.url}
-                alt={`${productName} thumbnail ${i + 1}`}
-                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-              />
+              {isVideo(img.url) ? (
+                <video
+                  src={img.url}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                  muted
+                  playsInline
+                />
+              ) : (
+                <img
+                  src={img.url}
+                  alt={`${productName} thumbnail ${i + 1}`}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                />
+              )}
             </button>
           ))}
         </div>

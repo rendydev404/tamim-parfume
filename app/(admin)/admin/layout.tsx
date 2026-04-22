@@ -15,6 +15,7 @@ import {
   Menu,
   X,
   ArrowLeft,
+  RefreshCcw,
 } from 'lucide-react'
 import Header from '@/components/layout/Header'
 
@@ -22,6 +23,7 @@ const navItems = [
   { href: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
   { href: '/admin/products', icon: Package, label: 'Produk' },
   { href: '/admin/orders', icon: ShoppingCart, label: 'Pesanan' },
+  { href: '/admin/returns', icon: RefreshCcw, label: 'Kelola Retur' },
   { href: '/admin/users', icon: Users, label: 'Pengguna' },
   { href: '/admin/chat', icon: MessageCircle, label: 'Chat Pelanggan' },
   { href: '/admin/coupons', icon: Tag, label: 'Kupon' },

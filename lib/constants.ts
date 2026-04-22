@@ -37,7 +37,11 @@ export const ORDER_STATUS: Record<string, { label: string; color: string }> = {
   shipped: { label: 'Dikirim', color: '#06b6d4' },
   delivered: { label: 'Selesai', color: '#10b981' },
   cancelled: { label: 'Dibatalkan', color: '#ef4444' },
-  refunded: { label: 'Dikembalikan', color: '#6b7280' },
+  refunded: { label: 'Dikembalikan (Refund)', color: '#6b7280' },
+  return_requested: { label: 'Ajuan Retur', color: '#f97316' },
+  return_approved: { label: 'Retur Disetujui', color: '#8b5cf6' },
+  return_rejected: { label: 'Retur Ditolak', color: '#ef4444' },
+  returned: { label: 'Barang Diretur', color: '#6b7280' },
 }
 
 // Shipping couriers

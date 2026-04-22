@@ -316,8 +316,9 @@ export default function CheckoutPage() {
         province: saved.province,
         city: saved.city,
         district: saved.district,
-        village: '',
-        postal_code: saved.postal_code,
+        // postal_code stores village name for addresses saved via profile page
+        village: saved.postal_code || '',
+        postal_code: saved.postal_code || '',
         full_address: saved.full_address,
       }
     }
@@ -875,9 +876,18 @@ export default function CheckoutPage() {
                             </button>
                           )) : !streetSearching && address.street_address.trim().length >= 2 ? (
                             <div style={{ padding: '12px 14px', fontSize: '13px', color: 'var(--color-text-muted)', textAlign: 'center' }}>
-                              <p style={{ margin: '0 0 4px 0' }}>Nama jalan tidak ditemukan di database peta.</p>
-                              <p style={{ margin: 0, fontWeight: 500, color: 'var(--color-text-secondary)' }}>
+                              <p style={{ margin: '0 0 4px 0' }}>Nama jalan ini belum terdaftar di database peta.</p>
+                              <p style={{ margin: '0 0 6px 0', fontWeight: 500, color: 'var(--color-text-secondary)' }}>
                                 Silakan ketik manual nama jalan Anda.
+                              </p>
+                              <p style={{ margin: 0, fontSize: '11px', color: 'var(--color-text-muted)', opacity: 0.7 }}>
+                                Contoh: Jl. Coneang RT 01/02 No. 15
+                              </p>
+                            </div>
+                          ) : streetSearching ? (
+                            <div style={{ padding: '12px 14px', fontSize: '13px', color: 'var(--color-text-muted)', textAlign: 'center' }}>
+                              <p style={{ margin: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                                <Loader2 size={14} className="animate-spin" /> Mencari dari beberapa sumber data...
                               </p>
                             </div>
                           ) : null}

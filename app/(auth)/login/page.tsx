@@ -112,6 +112,15 @@ function LoginForm() {
             </div>
           </div>
 
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '-8px' }}>
+            <Link href="/forgot-password" style={{
+              fontSize: '13px', color: 'var(--color-primary)',
+              textDecoration: 'none', fontWeight: 500,
+            }}>
+              Lupa Password?
+            </Link>
+          </div>
+
           <button
             type="submit"
             className="btn btn-primary btn-full btn-lg"

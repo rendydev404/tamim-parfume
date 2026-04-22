@@ -42,6 +42,20 @@ export default function ProductForm({ initialData, isEdit }: Props) {
   const [uploading, setUploading] = useState(false)
   const [dragActive, setDragActive] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [uploadMode, setUploadMode] = useState<'device' | 'url'>('device')
+  const [imageUrlInput, setImageUrlInput] = useState('')
+
+  const addImageUrl = () => {
+    if (!imageUrlInput.trim()) return
+    const newImage: UploadedImage = {
+      url: imageUrlInput.trim(),
+      is_primary: images.length === 0,
+      sort_order: images.length,
+    }
+    setImages(prev => [...prev, newImage])
+    setImageUrlInput('')
+    toast.success('Foto dari link berhasil ditambahkan')
+  }
   const [variants, setVariants] = useState<VariantRow[]>([])
   const [editingVariantIndex, setEditingVariantIndex] = useState<number | null>(null)
   const [openMenuIndex, setOpenMenuIndex] = useState<number | null>(null)
@@ -159,10 +173,14 @@ export default function ProductForm({ initialData, isEdit }: Props) {
     })
   }
 
+  const isVideo = (url: string) => {
+    return /\.(mp4|webm|ogg|mov)$/i.test(url) || url.includes('video') || url.includes('.mp4');
+  }
+
   const uploadFiles = useCallback(async (files: FileList | File[]) => {
-    const fileArray = Array.from(files).filter(f => f.type.startsWith('image/'))
+    const fileArray = Array.from(files).filter(f => f.type.startsWith('image/') || f.type.startsWith('video/'))
     if (fileArray.length === 0) {
-      toast.error('Hanya file gambar yang diperbolehkan')
+      toast.error('Hanya file gambar dan video yang diperbolehkan')
       return
     }
 
@@ -378,13 +396,13 @@ export default function ProductForm({ initialData, isEdit }: Props) {
       </h1>
 
       <form onSubmit={handleSubmit} style={{ maxWidth: '720px' }}>
-        {/* Foto Produk */}
+        {/* Foto & Video Produk */}
         <div className="card" style={{ padding: '24px', marginBottom: '16px' }}>
           <h3 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '4px', fontFamily: 'var(--font-body)' }}>
-            Foto Produk
+            Foto & Video Produk
           </h3>
           <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '16px' }}>
-            Upload foto produk (maks 10MB/foto). Foto pertama akan menjadi foto utama. Format: JPG, PNG, WebP.
+            Upload foto/video produk (maks 10MB/file). File pertama akan menjadi media utama. Format: JPG, PNG, WebP, MP4, WebM.
           </p>
 
           {/* Image Previews */}
@@ -412,15 +430,30 @@ export default function ProductForm({ initialData, isEdit }: Props) {
                   onClick={() => setPrimaryImage(index)}
                   title={img.is_primary ? 'Foto utama' : 'Klik untuk jadikan foto utama'}
                 >
-                  <img
-                    src={img.url}
-                    alt={`Foto ${index + 1}`}
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'cover',
-                    }}
-                  />
+                  {isVideo(img.url) ? (
+                    <video
+                      src={img.url}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                      }}
+                      muted
+                      loop
+                      playsInline
+                      autoPlay
+                    />
+                  ) : (
+                    <img
+                      src={img.url}
+                      alt={`Media ${index + 1}`}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                      }}
+                    />
+                  )}
                   {/* Primary badge */}
                   {img.is_primary && (
                     <span style={{
@@ -486,61 +519,137 @@ export default function ProductForm({ initialData, isEdit }: Props) {
             </div>
           )}
 
-          {/* Upload Zone */}
-          <div
-            onDragEnter={handleDrag}
-            onDragLeave={handleDrag}
-            onDragOver={handleDrag}
-            onDrop={handleDrop}
-            onClick={() => fileInputRef.current?.click()}
-            style={{
-              border: `2px dashed ${dragActive ? 'var(--color-accent)' : 'var(--color-border)'}`,
-              borderRadius: 'var(--radius-lg)',
-              padding: '32px',
-              textAlign: 'center',
-              cursor: uploading ? 'wait' : 'pointer',
-              transition: 'all 0.2s',
-              background: dragActive ? 'rgba(212,175,55,0.05)' : 'var(--color-bg-secondary)',
-              opacity: uploading ? 0.6 : 1,
-            }}
-          >
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/jpg"
-              multiple
-              onChange={(e) => e.target.files && uploadFiles(e.target.files)}
-              style={{ display: 'none' }}
-            />
-            {uploading ? (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                <Loader2 size={32} style={{ color: 'var(--color-text-muted)', animation: 'spin 1s linear infinite' }} />
-                <p style={{ fontSize: '14px', color: 'var(--color-text-secondary)' }}>Mengupload & mengkonversi ke WebP...</p>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                <div style={{
-                  width: '48px',
-                  height: '48px',
-                  borderRadius: 'var(--radius-md)',
-                  background: 'var(--color-bg-tertiary)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}>
-                  <ImagePlus size={24} style={{ color: 'var(--color-text-muted)' }} />
-                </div>
-                <div>
-                  <p style={{ fontSize: '14px', fontWeight: 500, color: 'var(--color-text)' }}>
-                    Klik atau seret foto ke sini
-                  </p>
-                  <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
-                    JPG, PNG, WebP • Maks 10MB • Otomatis dikonversi ke WebP
-                  </p>
-                </div>
-              </div>
-            )}
+          {/* Upload Mode Selection */}
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+            <button
+              type="button"
+              onClick={() => setUploadMode('device')}
+              style={{
+                flex: 1,
+                padding: '10px',
+                borderRadius: 'var(--radius-md)',
+                border: uploadMode === 'device' ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
+                background: uploadMode === 'device' ? 'var(--color-bg-secondary)' : 'transparent',
+                color: uploadMode === 'device' ? 'var(--color-text)' : 'var(--color-text-secondary)',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
+            >
+              Upload dari Device
+            </button>
+            <button
+              type="button"
+              onClick={() => setUploadMode('url')}
+              style={{
+                flex: 1,
+                padding: '10px',
+                borderRadius: 'var(--radius-md)',
+                border: uploadMode === 'url' ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
+                background: uploadMode === 'url' ? 'var(--color-bg-secondary)' : 'transparent',
+                color: uploadMode === 'url' ? 'var(--color-text)' : 'var(--color-text-secondary)',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
+            >
+              Gunakan Link URL
+            </button>
           </div>
+
+          {/* Upload Zone */}
+          {uploadMode === 'device' ? (
+            <div
+              onDragEnter={handleDrag}
+              onDragLeave={handleDrag}
+              onDragOver={handleDrag}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+              style={{
+                border: `2px dashed ${dragActive ? 'var(--color-accent)' : 'var(--color-border)'}`,
+                borderRadius: 'var(--radius-lg)',
+                padding: '32px',
+                textAlign: 'center',
+                cursor: uploading ? 'wait' : 'pointer',
+                transition: 'all 0.2s',
+                background: dragActive ? 'rgba(212,175,55,0.05)' : 'var(--color-bg-secondary)',
+                opacity: uploading ? 0.6 : 1,
+              }}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/jpg,video/mp4,video/webm"
+                multiple
+                onChange={(e) => e.target.files && uploadFiles(e.target.files)}
+                style={{ display: 'none' }}
+              />
+              {uploading ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                  <Loader2 size={32} style={{ color: 'var(--color-text-muted)', animation: 'spin 1s linear infinite' }} />
+                  <p style={{ fontSize: '14px', color: 'var(--color-text-secondary)' }}>Mengupload media...</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                  <div style={{
+                    width: '48px',
+                    height: '48px',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'var(--color-bg-tertiary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}>
+                    <ImagePlus size={24} style={{ color: 'var(--color-text-muted)' }} />
+                  </div>
+                  <div>
+                    <p style={{ fontSize: '14px', fontWeight: 500, color: 'var(--color-text)' }}>
+                      Klik atau seret foto/video ke sini
+                    </p>
+                    <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
+                      JPG, PNG, WebP, MP4, WebM • Maks 10MB
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <input
+                className="input"
+                type="url"
+                placeholder="https://contoh.com/gambar.jpg"
+                value={imageUrlInput}
+                onChange={(e) => setImageUrlInput(e.target.value)}
+                style={{ flex: 1 }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    addImageUrl();
+                  }
+                }}
+              />
+              <button
+                type="button"
+                onClick={addImageUrl}
+                disabled={!imageUrlInput.trim()}
+                style={{
+                  padding: '0 20px',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'var(--color-primary)',
+                  color: 'var(--color-secondary, white)',
+                  border: 'none',
+                  fontWeight: 600,
+                  cursor: imageUrlInput.trim() ? 'pointer' : 'not-allowed',
+                  opacity: imageUrlInput.trim() ? 1 : 0.5,
+                }}
+              >
+                Tambah
+              </button>
+            </div>
+          )}
           <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
         </div>
 

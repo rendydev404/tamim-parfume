@@ -120,7 +120,9 @@ export default async function ProductsPage({ searchParams }: Props) {
           <div className="product-grid">
             {products.map((product: Record<string, unknown>) => {
               const imgs = (product.images as { url: string; is_primary: boolean }[]) || []
-              const primaryImg = imgs.find(i => i.is_primary) || imgs[0]
+              const isVid = (url: string) => url && (/\.(mp4|webm|ogg|mov)$/i.test(url) || url.includes('video') || url.includes('.mp4'))
+              const nonVidImg = imgs.find(i => !isVid(i.url))
+              const primaryImg = nonVidImg || imgs.find(i => i.is_primary) || imgs[0]
               return (
                 <ProductCard
                   key={product.id as string}

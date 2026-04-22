@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
 import { ArrowLeft, Eye, EyeOff, Loader2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -32,23 +31,20 @@ export default function RegisterPage() {
     setLoading(true)
 
     try {
-      const supabase = createClient()
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: fullName,
-          },
-        },
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, fullName }),
       })
 
-      if (error) {
-        toast.error(error.message)
+      const data = await res.json()
+
+      if (!res.ok) {
+        toast.error(data.error || 'Registrasi gagal')
         return
       }
 
-      toast.success('Registrasi berhasil! Silakan cek email Anda untuk verifikasi.')
+      toast.success('Registrasi berhasil! Silakan login.')
       router.push('/login')
     } catch {
       toast.error('Terjadi kesalahan')

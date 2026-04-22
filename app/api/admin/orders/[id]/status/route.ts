@@ -124,8 +124,11 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     }
   }
 
-  // CASE 2: Delivered → increment sold_count
+  // CASE 2: Delivered → increment sold_count and set delivered_at
   if (newStatus === 'delivered') {
+    updates.delivered_at = new Date().toISOString()
+    await supabase.from('orders').update({ delivered_at: updates.delivered_at }).eq('id', id)
+
     if (orderItems) {
       for (const item of orderItems) {
         if (!item.product_id) continue

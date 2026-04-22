@@ -50,7 +50,9 @@ export default function WishlistPage() {
               {items.map((item: any) => {
                 const product = item.product
                 if (!product) return null
-                const primaryImage = product.images?.find((i: any) => i.is_primary)?.url || product.images?.[0]?.url
+                const isVid = (url: string) => url && (/\.(mp4|webm|ogg|mov)$/i.test(url) || url.includes('video') || url.includes('.mp4'))
+                const nonVidImg = product.images?.find((i: any) => !isVid(i.url))?.url
+                const primaryImage = nonVidImg || product.images?.find((i: any) => i.is_primary)?.url || product.images?.[0]?.url
                 return (
                   <ProductCard
                     key={item.id}

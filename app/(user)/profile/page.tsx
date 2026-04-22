@@ -222,28 +222,46 @@ export default function ProfilePage() {
 
       let avatarUrl = profile.avatar_url
 
-      // Upload avatar if changed
+      // Upload avatar if changed — via server API to bypass RLS
       if (avatarFile) {
-        const ext = avatarFile.name.split('.').pop()
-        const path = `${user.id}/avatar.${ext}`
-        const { error: uploadError } = await supabase.storage
-          .from('avatars')
-          .upload(path, avatarFile, { upsert: true })
+        const formData = new FormData()
+        formData.append('avatar', avatarFile)
 
-        if (!uploadError) {
-          const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path)
-          avatarUrl = urlData.publicUrl
+        const uploadRes = await fetch('/api/auth/avatar', {
+          method: 'POST',
+          body: formData,
+        })
+
+        const uploadData = await uploadRes.json()
+
+        if (!uploadRes.ok) {
+          toast.error(uploadData.error || 'Gagal mengupload foto')
+          setSaving(false)
+          return
         }
+
+        avatarUrl = uploadData.avatar_url
+      }
+
+      // Update profile (name, phone) — avatar already updated by the API if changed
+      const updateData: Record<string, string> = {
+        full_name: profile.full_name,
+        phone: profile.phone,
+      }
+      // Only include avatar_url if we didn't upload (upload API already saves it)
+      if (!avatarFile) {
+        updateData.avatar_url = avatarUrl
       }
 
       const { error } = await supabase
         .from('profiles')
-        .update({ full_name: profile.full_name, phone: profile.phone, avatar_url: avatarUrl })
+        .update(updateData)
         .eq('id', user.id)
 
       if (error) throw error
       setProfile({ ...profile, avatar_url: avatarUrl })
       setAvatarFile(null)
+      setAvatarPreview(null)
       toast.success('Profil berhasil disimpan')
     } catch {
       toast.error('Gagal menyimpan profil')
@@ -667,9 +685,18 @@ export default function ProfilePage() {
                           </button>
                         )) : !streetSearching && addressForm.street_address.trim().length >= 2 ? (
                           <div style={{ padding: '12px 14px', fontSize: '13px', color: 'var(--color-text-muted)', textAlign: 'center' }}>
-                            <p style={{ margin: '0 0 4px 0' }}>Nama jalan tidak ditemukan di database peta.</p>
-                            <p style={{ margin: 0, fontWeight: 500, color: 'var(--color-text-secondary)' }}>
+                            <p style={{ margin: '0 0 4px 0' }}>Nama jalan ini belum terdaftar di database peta.</p>
+                            <p style={{ margin: '0 0 6px 0', fontWeight: 500, color: 'var(--color-text-secondary)' }}>
                               Silakan ketik manual nama jalan Anda.
+                            </p>
+                            <p style={{ margin: 0, fontSize: '11px', color: 'var(--color-text-muted)', opacity: 0.7 }}>
+                              Contoh: Jl. Coneang RT 01/02 No. 15
+                            </p>
+                          </div>
+                        ) : streetSearching ? (
+                          <div style={{ padding: '12px 14px', fontSize: '13px', color: 'var(--color-text-muted)', textAlign: 'center' }}>
+                            <p style={{ margin: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                              <Loader2 size={14} className="animate-spin" /> Mencari dari beberapa sumber data...
                             </p>
                           </div>
                         ) : null}

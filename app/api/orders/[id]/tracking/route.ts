@@ -2,140 +2,193 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { STORE_INFO } from '@/lib/constants'
 
-// Dynamic geocoding via Nominatim (OpenStreetMap) — uses structured queries for accuracy
+// ============================================================
+// GEOCODING — Multi-strategy, village-level precision
+// Uses Photon (primary) + Nominatim (fallback) for accuracy
+// ============================================================
+
 async function geocodeAddress(params: {
   address?: string
   village?: string
   district?: string
   city?: string
   province?: string
-  postal_code?: string
 }): Promise<{ lat: number; lng: number }> {
-  const { address, village, district, city, province, postal_code } = params
+  const { address, village, district, city, province } = params
 
-  // Build queries from most specific to least specific
-  const queries: { structured?: Record<string, string>; freeform?: string }[] = []
+  console.log(`[Geocode] Input: village="${village}", district="${district}", city="${city}", province="${province}", address="${address}"`)
 
-  // === STRUCTURED QUERIES (much more accurate for Indonesian addresses) ===
+  // Build search queries from most specific to least specific
+  const queries: string[] = []
 
-  // Query 1: Village + District + City + Province (most specific)
+  // Most specific: village + district + city
   if (village && district && city) {
-    queries.push({
-      structured: {
-        village: village,
-        county: district,
-        city: city,
-        state: province || '',
-        country: 'Indonesia',
-      },
-    })
+    queries.push(`${village}, ${district}, ${city}, ${province || ''}, Indonesia`)
+    queries.push(`Desa ${village}, Kecamatan ${district}, ${city}, Indonesia`)
+    queries.push(`${village}, ${district}, ${city}, Indonesia`)
   }
 
-  // Query 2: Village + City + Province
+  // Village + city
   if (village && city) {
-    queries.push({
-      structured: {
-        village: village,
-        city: city,
-        state: province || '',
-        country: 'Indonesia',
-      },
-    })
+    queries.push(`${village}, ${city}, Indonesia`)
   }
 
-  // Query 3: District + City + Province
+  // Village only (with province context)
+  if (village) {
+    queries.push(`${village}, ${province || 'Indonesia'}`)
+  }
+
+  // Street address + village/district context
+  if (address && village) {
+    queries.push(`${address}, ${village}, ${city || ''}, Indonesia`)
+  }
+
+  // District + city (fallback)
   if (district && city) {
-    queries.push({
-      structured: {
-        county: district,
-        city: city,
-        state: province || '',
-        country: 'Indonesia',
-      },
-    })
+    queries.push(`Kecamatan ${district}, ${city}, Indonesia`)
+    queries.push(`${district}, ${city}, Indonesia`)
   }
 
-  // === FREEFORM QUERIES (fallback) ===
-
-  // Query 4: Full combined — "Desa X, Kecamatan Y, Kota Z, Provinsi, Indonesia"
-  const fullParts = [
-    village ? `Desa ${village}` : null,
-    district ? `Kecamatan ${district}` : null,
-    city,
-    province,
-    'Indonesia',
-  ].filter(Boolean)
-  if (fullParts.length > 2) queries.push({ freeform: fullParts.join(', ') })
-
-  // Query 5: Village, district, city (without prefixes)
-  const simpleParts = [village, district, city, province, 'Indonesia'].filter(Boolean)
-  if (simpleParts.length > 2) queries.push({ freeform: simpleParts.join(', ') })
-
-  // Query 6: Street address + district + city
-  if (address) {
-    const addrParts = [address, district, city, province, 'Indonesia'].filter(Boolean)
-    if (addrParts.length > 2) queries.push({ freeform: addrParts.join(', ') })
+  // City + province (last resort before default)
+  if (city) {
+    queries.push(`${city}, ${province || ''}, Indonesia`)
   }
 
-  // Query 7: District + city + province
-  const districtParts = [district, city, province, 'Indonesia'].filter(Boolean)
-  if (districtParts.length > 2) queries.push({ freeform: districtParts.join(', ') })
-
-  // Query 8: City + province
-  const cityParts = [city, province, 'Indonesia'].filter(Boolean)
-  if (cityParts.length > 1) queries.push({ freeform: cityParts.join(', ') })
-
-  // Query 9: Postal code
-  if (postal_code) queries.push({ freeform: `${postal_code}, Indonesia` })
-
-  // Query 10: City only
-  if (city) queries.push({ freeform: `${city}, Indonesia` })
-
-  // Try each query from most specific to least specific
-  for (const query of queries) {
-    try {
-      const url = new URL('https://nominatim.openstreetmap.org/search')
-
-      if (query.structured) {
-        // Use structured query parameters for accuracy
-        for (const [key, value] of Object.entries(query.structured)) {
-          if (value) url.searchParams.set(key, value)
-        }
-      } else if (query.freeform) {
-        url.searchParams.set('q', query.freeform)
-      }
-
-      url.searchParams.set('format', 'json')
-      url.searchParams.set('limit', '1')
-      url.searchParams.set('countrycodes', 'id')
-
-      const res = await fetch(url.toString(), {
-        headers: {
-          'User-Agent': 'TamimParfume/1.0',
-          'Accept-Language': 'id',
-        },
-        next: { revalidate: 86400 }, // Cache 24 hours
-      })
-
-      if (res.ok) {
-        const data = await res.json()
-        if (data.length > 0) {
-          const lat = parseFloat(data[0].lat)
-          const lng = parseFloat(data[0].lon)
-          // Validate that coordinates are within Indonesia bounds
-          if (lat >= -11 && lat <= 6 && lng >= 95 && lng <= 141) {
-            return { lat, lng }
-          }
-        }
-      }
-    } catch (err) {
-      console.error('Geocoding error:', err)
+  // Try Photon first (better accuracy for Indonesian villages)
+  for (const q of queries) {
+    const result = await searchPhoton(q, village)
+    if (result) {
+      console.log(`[Geocode] ✅ Photon hit for "${q}" → ${result.lat}, ${result.lng}`)
+      return result
     }
   }
 
-  // Last resort fallback: center of Indonesia
+  // Fallback to Nominatim
+  for (const q of queries) {
+    const result = await searchNominatim(q, village)
+    if (result) {
+      console.log(`[Geocode] ✅ Nominatim hit for "${q}" → ${result.lat}, ${result.lng}`)
+      return result
+    }
+  }
+
+  console.log('[Geocode] ❌ No results, using Indonesia center')
   return { lat: -2.5, lng: 118.0 }
 }
+
+// Search using Photon geocoder (built on OSM, good for villages)
+async function searchPhoton(
+  query: string,
+  preferredName?: string
+): Promise<{ lat: number; lng: number } | null> {
+  try {
+    const url = new URL('https://photon.komoot.io/api/')
+    url.searchParams.set('q', query)
+    url.searchParams.set('limit', '5')
+    url.searchParams.set('lang', 'default')
+
+    const res = await fetch(url.toString(), {
+      headers: { 'User-Agent': 'TamimParfume/1.0' },
+      signal: AbortSignal.timeout(8000),
+    })
+
+    if (!res.ok) return null
+
+    const data = await res.json()
+    if (!data.features || data.features.length === 0) return null
+
+    // Score each result and pick the best one
+    let bestResult: { lat: number; lng: number; score: number } | null = null
+
+    for (const feature of data.features) {
+      const props = feature.properties || {}
+      const coords = feature.geometry?.coordinates
+
+      if (props.country && props.country !== 'Indonesia') continue
+      if (!coords || coords.length < 2) continue
+
+      const lat = coords[1]
+      const lng = coords[0]
+
+      // Validate Indonesia bounds
+      if (lat < -11 || lat > 6 || lng < 95 || lng > 141) continue
+
+      let score = 0
+      const name = (props.name || '').toLowerCase()
+      const osmValue = props.osm_value || ''
+
+      // Strongly prefer results that match our village name
+      if (preferredName && name === preferredName.toLowerCase()) {
+        score += 100
+      } else if (preferredName && name.includes(preferredName.toLowerCase())) {
+        score += 50
+      }
+
+      // Prefer village/hamlet type results
+      if (['village', 'hamlet'].includes(osmValue)) score += 30
+      else if (['suburb', 'neighbourhood', 'town'].includes(osmValue)) score += 15
+      else if (['city', 'county'].includes(osmValue)) score -= 20
+      else if (['state', 'country'].includes(osmValue)) score -= 50
+
+      if (!bestResult || score > bestResult.score) {
+        bestResult = { lat, lng, score }
+      }
+    }
+
+    return bestResult ? { lat: bestResult.lat, lng: bestResult.lng } : null
+  } catch {
+    return null
+  }
+}
+
+// Search using Nominatim (OSM official geocoder)
+async function searchNominatim(
+  query: string,
+  preferredName?: string
+): Promise<{ lat: number; lng: number } | null> {
+  try {
+    const url = new URL('https://nominatim.openstreetmap.org/search')
+    url.searchParams.set('q', query)
+    url.searchParams.set('format', 'json')
+    url.searchParams.set('limit', '3')
+    url.searchParams.set('countrycodes', 'id')
+    url.searchParams.set('accept-language', 'id')
+
+    const res = await fetch(url.toString(), {
+      headers: { 'User-Agent': 'TamimParfume/1.0' },
+      signal: AbortSignal.timeout(8000),
+    })
+
+    if (!res.ok) return null
+
+    const data = await res.json()
+    if (!data || data.length === 0) return null
+
+    // Pick the result that best matches our village name
+    let best = data[0]
+    if (preferredName) {
+      const preferred = data.find((d: any) =>
+        (d.display_name || '').toLowerCase().includes(preferredName.toLowerCase())
+      )
+      if (preferred) best = preferred
+    }
+
+    const lat = parseFloat(best.lat)
+    const lng = parseFloat(best.lon)
+
+    if (lat >= -11 && lat <= 6 && lng >= 95 && lng <= 141) {
+      return { lat, lng }
+    }
+
+    return null
+  } catch {
+    return null
+  }
+}
+
+// ============================================================
+// TRACKING API
+// ============================================================
 
 export async function GET(
   request: Request,
@@ -173,19 +226,31 @@ export async function GET(
     lng: STORE_INFO.lng,
   }
 
-  // Use village + district + city + province for accurate geocoding
+  // ======= KEY FIX =======
+  // The postal_code field in saved addresses actually stores the VILLAGE NAME
+  // (due to how handleSaveAddress works in profile page).
+  // So we use postal_code as a village name fallback when shipping_village is empty.
+  const villageName = order.shipping_village
+    || order.shipping_postal_code  // postal_code stores village name for saved addresses
+    || ''
+  const districtName = order.shipping_district || ''
+  const cityName = order.shipping_city || ''
+  const provinceName = order.shipping_province || ''
+
+  // Geocode destination with village-level accuracy
   const destCoords = await geocodeAddress({
     address: order.shipping_address || undefined,
-    village: order.shipping_village || undefined,
-    district: order.shipping_district || undefined,
-    city: order.shipping_city || undefined,
-    province: order.shipping_province || undefined,
-    postal_code: order.shipping_postal_code || undefined,
+    village: villageName || undefined,
+    district: districtName || undefined,
+    city: cityName || undefined,
+    province: provinceName || undefined,
   })
 
   const destination = {
-    city: order.shipping_city || 'Tujuan',
-    province: order.shipping_province || '',
+    city: cityName || 'Tujuan',
+    village: villageName,
+    district: districtName,
+    province: provinceName,
     lat: destCoords.lat,
     lng: destCoords.lng,
   }

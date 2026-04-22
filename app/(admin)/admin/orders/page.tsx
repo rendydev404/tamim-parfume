@@ -310,11 +310,21 @@ export default function AdminOrdersPage() {
                                   overflow: 'hidden',
                                   border: '1px solid var(--color-border-light)',
                                 }}>
-                                  {displayImage ? (
-                                    <img src={displayImage} alt={displayName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                  ) : (
-                                    <Droplets size={14} style={{ color: 'var(--color-text-muted)', opacity: 0.5 }} />
-                                  )}
+                                  {(() => {
+                                    const isVid = (url: string) => url && (/\.(mp4|webm|ogg|mov)$/i.test(url) || url.includes('video') || url.includes('.mp4'));
+                                    let displayImg = displayImage;
+                                    
+                                    if (displayImg && isVid(displayImg)) {
+                                      const nonVidImg = productImages.find((img: any) => !isVid(img.url));
+                                      displayImg = nonVidImg?.url || displayImg;
+                                    }
+
+                                    return displayImg ? (
+                                      <img src={displayImg} alt={displayName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                    ) : (
+                                      <Droplets size={14} style={{ color: 'var(--color-text-muted)', opacity: 0.5 }} />
+                                    );
+                                  })()}
                                 </div>
                                 <div style={{ minWidth: 0 }}>
                                   <p style={{ fontSize: '12px', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0, maxWidth: '150px' }}>

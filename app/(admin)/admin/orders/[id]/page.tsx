@@ -23,6 +23,8 @@ export default function AdminOrderDetailPage() {
   const [coupon, setCoupon] = useState<Record<string, any> | null>(null)
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState(false)
+  const [returnRequest, setReturnRequest] = useState<any>(null)
+  const [adminNotes, setAdminNotes] = useState('')
   const [showPrintLabel, setShowPrintLabel] = useState(false)
 
   useEffect(() => {
@@ -61,7 +63,37 @@ export default function AdminOrderDetailPage() {
       .maybeSingle()
 
     setCoupon(couponData)
+
+    const { data: returnData } = await supabase
+      .from('returns')
+      .select('*')
+      .eq('order_id', orderId)
+      .maybeSingle()
+    
+    setReturnRequest(returnData)
+    if (returnData?.admin_notes) setAdminNotes(returnData.admin_notes)
+
     setLoading(false)
+  }
+
+  const updateReturnStatus = async (newStatus: string) => {
+    if (!returnRequest) return
+    setUpdating(true)
+    try {
+      const res = await fetch(`/api/admin/returns/${returnRequest.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus, admin_notes: adminNotes })
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error)
+      toast.success(`Status retur diperbarui menjadi ${newStatus}`)
+      loadOrder()
+    } catch (err: any) {
+      toast.error(err.message || 'Gagal memperbarui status retur')
+    } finally {
+      setUpdating(false)
+    }
   }
 
   const updateStatus = async (newStatus: string) => {
@@ -171,6 +203,11 @@ export default function AdminOrderDetailPage() {
             <option value="shipped">Dikirim</option>
             <option value="delivered">Selesai</option>
             <option value="cancelled">Dibatalkan</option>
+            <option value="return_requested">Ajuan Retur</option>
+            <option value="return_approved">Retur Disetujui</option>
+            <option value="return_rejected">Retur Ditolak</option>
+            <option value="returned">Barang Diretur</option>
+            <option value="refunded">Dikembalikan (Refund)</option>
           </select>
           {['pending_payment', 'paid', 'processing'].includes(order.status) && (
             <button
@@ -210,6 +247,105 @@ export default function AdminOrderDetailPage() {
               Dibatalkan pada {formatDateTime(order.cancelled_at)}
             </p>
           )}
+        </div>
+      )}
+
+      {/* Return Request Info Block */}
+      {returnRequest && (
+        <div className="card" style={{ padding: '20px', marginBottom: '16px', border: '1px solid var(--color-warning)' }}>
+          <h2 style={{ fontSize: '14px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-warning-dark)' }}>
+            <XCircle size={18} />
+            Pengajuan Retur Barang
+          </h2>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+            <div>
+              <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', margin: '0 0 4px 0' }}>Alasan Retur</p>
+              <p style={{ fontSize: '14px', fontWeight: 600, margin: 0 }}>{returnRequest.reason}</p>
+            </div>
+            <div>
+              <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', margin: '0 0 4px 0' }}>Status Retur</p>
+              <span className={`badge badge-${returnRequest.status === 'pending' ? 'warning' : returnRequest.status === 'approved' ? 'success' : returnRequest.status === 'completed' ? 'secondary' : 'error'}`}>
+                {returnRequest.status.toUpperCase()}
+              </span>
+            </div>
+          </div>
+
+          {returnRequest.details && (
+            <div style={{ marginBottom: '20px' }}>
+              <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', margin: '0 0 4px 0' }}>Detail Masalah</p>
+              <p style={{ fontSize: '13px', margin: 0, background: 'var(--color-bg-secondary)', padding: '10px', borderRadius: '8px' }}>
+                {returnRequest.details}
+              </p>
+            </div>
+          )}
+
+          <div style={{ marginBottom: '20px' }}>
+            <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', margin: '0 0 8px 0' }}>Bukti Foto/Video</p>
+            <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '8px' }}>
+              {returnRequest.proof_images?.map((url: string, i: number) => {
+                const isVid = /\.(mp4|webm|ogg|mov)$/i.test(url)
+                return (
+                  <a key={i} href={url} target="_blank" rel="noopener noreferrer" style={{ flexShrink: 0, width: '100px', height: '100px', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--color-border)', display: 'block' }}>
+                    {isVid ? (
+                      <video src={url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <img src={url} alt="Bukti" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    )}
+                  </a>
+                )
+              })}
+            </div>
+          </div>
+
+          {returnRequest.return_tracking_number && (
+            <div style={{ marginBottom: '20px', padding: '12px', background: 'var(--color-bg-tertiary)', border: '1px solid var(--color-border)', borderRadius: '8px' }}>
+              <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', margin: '0 0 4px 0' }}>Resi Pengiriman Balik (Dari Pembeli)</p>
+              <p style={{ fontSize: '14px', fontWeight: 600, margin: 0 }}>{returnRequest.return_tracking_number}</p>
+            </div>
+          )}
+
+          <div className="form-group" style={{ marginBottom: '20px' }}>
+            <label className="form-label">Catatan Admin (Opsional, untuk alasan penolakan dll)</label>
+            <textarea 
+              className="input" 
+              rows={2} 
+              placeholder="Ketik catatan di sini..."
+              value={adminNotes}
+              onChange={e => setAdminNotes(e.target.value)}
+            />
+          </div>
+
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            {returnRequest.status === 'pending' && (
+              <>
+                <button 
+                  className="btn btn-secondary btn-sm" 
+                  onClick={() => updateReturnStatus('rejected')} 
+                  disabled={updating}
+                  style={{ color: 'var(--color-error)' }}
+                >
+                  Tolak Retur
+                </button>
+                <button 
+                  className="btn btn-primary btn-sm" 
+                  onClick={() => updateReturnStatus('approved')} 
+                  disabled={updating}
+                >
+                  Setujui Retur
+                </button>
+              </>
+            )}
+            {returnRequest.status === 'approved' && (
+              <button 
+                className="btn btn-primary btn-sm" 
+                onClick={() => updateReturnStatus('completed')} 
+                disabled={updating}
+              >
+                Tandai Selesai (Refunded)
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -256,11 +392,21 @@ export default function AdminOrderDetailPage() {
               overflow: 'hidden',
               border: '1px solid var(--color-border-light)',
             }}>
-              {displayImage ? (
-                <img src={displayImage} alt={displayName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              ) : (
-                <Droplets size={18} style={{ color: 'var(--color-text-muted)' }} />
-              )}
+              {(() => {
+                const isVid = (url: string) => url && (/\.(mp4|webm|ogg|mov)$/i.test(url) || url.includes('video') || url.includes('.mp4'));
+                let displayImg = displayImage;
+                
+                if (displayImg && isVid(displayImg)) {
+                  const nonVidImg = productImages.find((img: any) => !isVid(img.url));
+                  displayImg = nonVidImg?.url || displayImg;
+                }
+
+                return displayImg ? (
+                  <img src={displayImg} alt={displayName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <Droplets size={18} style={{ color: 'var(--color-text-muted)' }} />
+                );
+              })()}
             </div>
             <div style={{ flex: 1 }}>
               <p style={{ fontSize: '14px', fontWeight: 500, margin: '0 0 2px 0' }}>{displayName}</p>

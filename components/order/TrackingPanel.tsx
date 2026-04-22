@@ -18,7 +18,7 @@ interface TrackingData {
   service: string
   status: string
   origin: { city: string; district: string; lat: number; lng: number }
-  destination: { city: string; province: string; lat: number; lng: number }
+  destination: { city: string; village: string; district: string; province: string; lat: number; lng: number }
   current_position: { lat: number; lng: number }
   progress: number
   checkpoints: Checkpoint[]
@@ -136,7 +136,7 @@ export default function TrackingPanel({ orderId }: { orderId: string }) {
     L.marker(origin, { icon: originIcon }).addTo(map)
       .bindPopup(`<strong>Asal</strong><br/>${data.origin.district}, ${data.origin.city}`)
     L.marker(dest, { icon: destIcon }).addTo(map)
-      .bindPopup(`<strong>Tujuan</strong><br/>${data.destination.city}, ${data.destination.province}`)
+      .bindPopup(`<strong>Tujuan</strong><br/>${[data.destination.village, data.destination.district, data.destination.city].filter(Boolean).join(', ')}`)
 
     // Fetch real road route from OSRM (free routing API)
     try {
@@ -270,7 +270,7 @@ export default function TrackingPanel({ orderId }: { orderId: string }) {
           <div className="tracking-header__route-line" />
           <div className="tracking-header__route-point">
             <div className="tracking-header__route-dot tracking-header__route-dot--dest" />
-            <span>{data.destination.city}</span>
+            <span>{data.destination.village || data.destination.district || data.destination.city}</span>
           </div>
         </div>
       </div>
