@@ -3,8 +3,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { formatRupiah } from '@/lib/utils'
-import Header from '@/components/layout/Header'
-import MobileNav from '@/components/layout/MobileNav'
 import toast from 'react-hot-toast'
 import {
   Loader2, Copy, Check, Clock, CheckCircle2, XCircle,
@@ -159,8 +157,7 @@ export default function PaymentPage() {
   if (loading) {
     return (
       <>
-        <Header />
-        <main className="page-content">
+<main className="page-content">
           <div style={styles.centerWrap}>
             <div style={styles.loadingDot}>
               <Loader2 size={36} className="animate-spin" style={{ color: 'var(--color-primary)' }} />
@@ -168,8 +165,7 @@ export default function PaymentPage() {
             <p style={{ color: 'var(--color-text-muted)', marginTop: '16px', fontSize: '14px' }}>Memuat pembayaran…</p>
           </div>
         </main>
-        <MobileNav />
-      </>
+</>
     )
   }
 
@@ -177,8 +173,7 @@ export default function PaymentPage() {
   if (error || !transaction) {
     return (
       <>
-        <Header />
-        <main className="page-content">
+<main className="page-content">
           <div style={styles.centerWrap}>
             <div style={{ ...styles.iconCircle, background: 'linear-gradient(135deg,#fef2f2,#fee2e2)' }}>
               <AlertTriangle size={32} style={{ color: '#ef4444' }} />
@@ -197,8 +192,7 @@ export default function PaymentPage() {
             </div>
           </div>
         </main>
-        <MobileNav />
-      </>
+</>
     )
   }
 
@@ -209,8 +203,7 @@ export default function PaymentPage() {
   /* ——————————————————————— RENDER ——————————————————————— */
   return (
     <>
-      <Header />
-      <main className="page-content">
+<main className="page-content">
         <div style={styles.wrapper}>
 
           {/* ═══ PAID STATE ═══ */}
@@ -385,7 +378,7 @@ export default function PaymentPage() {
 
               {/* QRIS */}
               {transaction.qr_url && (
-                <div style={{ ...styles.card, textAlign: 'center' as const }}>
+                <div style={{ ...styles.card, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                   <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '14px' }}>
                     Scan QR Code
                   </p>
@@ -490,9 +483,7 @@ export default function PaymentPage() {
 
         </div>
       </main>
-      <MobileNav />
-
-      <style jsx>{`
+<style jsx>{`
         @keyframes blink {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.4; }

@@ -7,8 +7,6 @@ import { formatRupiah } from '@/lib/utils'
 import { generateOrderNumber, generateTrackingNumber } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { Loader2, MapPin, Truck, CreditCard, ChevronRight, Plus, Check, Search } from 'lucide-react'
-import Header from '@/components/layout/Header'
-import MobileNav from '@/components/layout/MobileNav'
 import CouponInput from '@/components/checkout/CouponInput'
 import toast from 'react-hot-toast'
 
@@ -99,7 +97,7 @@ export default function CheckoutPage() {
     address_detail: '',
   })
 
-  // Regional dropdown state
+  // Regional dropdown state (api.co.id for district/village)
   interface RegionItem { code: string; name: string }
   const [provinces, setProvinces] = useState<RegionItem[]>([])
   const [regencies, setRegencies] = useState<RegionItem[]>([])
@@ -120,16 +118,18 @@ export default function CheckoutPage() {
 
   // Shipping
   const [selectedShipping, setSelectedShipping] = useState<{
-    courier: string; service: string; cost: number; etd: string
+    courier: string; service: string; description?: string; cost: number; etd: string
   } | null>(null)
   const [shippingOptions, setShippingOptions] = useState<{
-    courier: string; service: string; cost: number; etd: string
+    courier: string; service: string; description?: string; cost: number; etd: string
   }[]>([])
   const [shippingLoading, setShippingLoading] = useState(false)
+  const [destinationId, setDestinationId] = useState<number | null>(null)
 
-  // Origin village code — set this to your store's village code  
-  // Find your village code at: https://api.co.id/indonesia-regional-api/
-  const ORIGIN_VILLAGE_CODE = '3271031012' // Kebon Kelapa, Bogor Tengah, Kota Bogor
+  // Origin destination ID from RajaOngkir (Tegal Gundil, Bogor Utara, Kota Bogor)
+  // Jl. Achmad Adnawijaya No.D2 No 5, RT.02/RW.11, Tegal Gundil, Kec. Bogor Utara, Kota Bogor, Jawa Barat 16152
+  const ORIGIN_DESTINATION_ID = 8174
+  const ORIGIN_VILLAGE_CODE = '76116' // Origin village code for fallback api.co.id
 
   // Payment
   const [selectedPayment, setSelectedPayment] = useState('')
@@ -188,11 +188,12 @@ export default function CheckoutPage() {
     setMounted(true)
     loadSavedAddresses()
     if (buyNowId) loadBuyNowProduct()
-    // Load provinces for address form
+    // Load provinces for address form (api.co.id for district/village)
     fetch('/api/regional?type=provinces')
       .then(r => r.json())
       .then(json => setProvinces(json.data || []))
       .catch(() => {})
+
     // Load payment channels from Tripay
     fetch('/api/payment/channels')
       .then(r => r.json())
@@ -379,55 +380,88 @@ export default function CheckoutPage() {
     setRegionLoading('')
   }
 
-  // Fetch real shipping costs
-  const loadShippingCosts = async (destinationVillageCode: string) => {
+  // Search Komerce destination ID from region name
+  const searchDestinationId = async (keyword: string): Promise<number | null> => {
+    try {
+      const res = await fetch(`/api/shipping/destination?keyword=${encodeURIComponent(keyword)}`)
+      const json = await res.json()
+      if (json.data && json.data.length > 0) {
+        return json.data[0].id
+      }
+    } catch { /* ignore */ }
+    return null
+  }
+
+  // Fetch shipping costs - tries Komerce, then api.co.id, then smart calculation
+  const loadShippingCosts = async (destId: number | null, villageCode?: string, provinceName?: string) => {
     setShippingLoading(true)
     setShippingOptions([])
+    if (destId) setDestinationId(destId)
     const totalWeight = isBuyNow && buyNowItem
       ? buyNowItem.weight * buyNowItem.quantity
       : getTotalWeight()
+    const itemValue = isBuyNow && buyNowItem
+      ? buyNowItem.price * buyNowItem.quantity
+      : getTotalPrice()
+
+    const params = new URLSearchParams({ weight: (totalWeight || 1000).toString(), item_value: itemValue.toString() })
+    if (destId) {
+      params.set('origin', ORIGIN_DESTINATION_ID.toString())
+      params.set('destination', destId.toString())
+    }
+    if (villageCode) {
+      params.set('origin_village', ORIGIN_VILLAGE_CODE)
+      params.set('destination_village', villageCode)
+    }
+    if (provinceName) {
+      params.set('province', provinceName)
+    }
+
     try {
-      const res = await fetch(`/api/shipping-cost?origin=${ORIGIN_VILLAGE_CODE}&destination=${destinationVillageCode}&weight=${totalWeight || 1000}`)
+      const res = await fetch(`/api/shipping-cost?${params.toString()}`)
       const json = await res.json()
       setShippingOptions(json.data || [])
     } catch {
       setShippingOptions([
-        { courier: 'JNE', service: 'REG', cost: 15000, etd: '2-3 hari' },
-        { courier: 'JNE', service: 'YES', cost: 25000, etd: '1 hari' },
-        { courier: 'TIKI', service: 'ECO', cost: 12000, etd: '3-4 hari' },
+        { courier: 'JNE', service: 'REG', description: 'Layanan Reguler', cost: 15000, etd: '2-3 hari' },
+        { courier: 'JNE', service: 'YES', description: 'Yakin Esok Sampai', cost: 25000, etd: '1 hari' },
+        { courier: 'TIKI', service: 'ECO', description: 'Economy Service', cost: 12000, etd: '3-4 hari' },
+        { courier: 'TIKI', service: 'REG', description: 'Regular Service', cost: 16000, etd: '2-3 hari' },
+        { courier: 'POS', service: 'Kilat Khusus', description: 'Pos Indonesia', cost: 18000, etd: '2-4 hari' },
       ])
     }
     setShippingLoading(false)
   }
 
-  const handleSubmitAddress = (e: React.FormEvent) => {
+  const handleSubmitAddress = async (e: React.FormEvent) => {
     e.preventDefault()
-    // Get village code for shipping cost
-    if (selectedVillage) {
-      loadShippingCosts(selectedVillage)
-    }
-    // Set province/city names from selected dropdown
     const provName = provinces.find(p => p.code === selectedProvince)?.name || address.province
     const regName = regencies.find(r => r.code === selectedRegency)?.name || address.city
     const distName = districts.find(d => d.code === selectedDistrict)?.name || address.district
     setAddress(prev => ({ ...prev, province: provName, city: regName, district: distName }))
     setShowStreetSuggestions(false)
     setStep(2)
+
+    const searchKeyword = distName || regName
+    const destId = await searchDestinationId(searchKeyword)
+    loadShippingCosts(destId, selectedVillage, provName)
   }
 
-  const handleSelectSavedAddress = () => {
+  const handleSelectSavedAddress = async () => {
     if (!selectedAddressId) {
       toast.error('Pilih alamat pengiriman')
       return
     }
-    // Use fallback shipping for saved addresses (no village code)
-    setShippingOptions([
-      { courier: 'JNE', service: 'REG', cost: 15000, etd: '2-3 hari' },
-      { courier: 'JNE', service: 'YES', cost: 25000, etd: '1 hari' },
-      { courier: 'TIKI', service: 'ECO', cost: 12000, etd: '3-4 hari' },
-      { courier: 'POS', service: 'Kilat Khusus', cost: 18000, etd: '2-4 hari' },
-    ])
     setStep(2)
+    setShippingLoading(true)
+
+    const saved = savedAddresses.find(a => a.id === selectedAddressId)
+    let destId = null
+    if (saved) {
+      const searchKeyword = saved.district || saved.city || ''
+      destId = await searchDestinationId(searchKeyword)
+    }
+    loadShippingCosts(destId, saved?.postal_code, saved?.province)
   }
 
   const handleSelectShipping = (option: typeof selectedShipping) => {
@@ -498,6 +532,7 @@ export default function CheckoutPage() {
           quantity: item.quantity,
           price: item.price,
           subtotal: item.price * item.quantity,
+          variant_id: item.variant_id || null,
           variant_label: item.variant_label || null,
         }
       })
@@ -614,8 +649,7 @@ export default function CheckoutPage() {
 
   return (
     <>
-      <Header />
-      <main className="page-content">
+<main className="page-content">
         <div className="container" style={{ paddingTop: '24px', paddingBottom: '40px', maxWidth: '720px' }}>
           <h1 style={{ fontSize: '1.5rem', marginBottom: '24px' }}>Checkout</h1>
 
@@ -903,6 +937,7 @@ export default function CheckoutPage() {
                         placeholder="Lantai, blok, patokan, RT/RW, dll."
                       />
                     </div>
+
                   </div>
 
                   <button type="submit" className="btn btn-primary btn-full btn-lg" style={{ marginTop: '20px' }}>
@@ -925,39 +960,47 @@ export default function CheckoutPage() {
                 {shippingLoading ? (
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px', gap: '12px' }}>
                     <Loader2 size={28} className="animate-spin" />
-                    <p style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>Menghitung ongkos kirim...</p>
+                    <p style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>Menghitung ongkos kirim dari JNE, TIKI, POS...</p>
+                    <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', opacity: 0.7 }}>Powered by RajaOngkir</p>
                   </div>
                 ) : shippingOptions.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '40px', color: 'var(--color-text-muted)', fontSize: '14px' }}>
                     Tidak ada opsi pengiriman tersedia
                   </div>
                 ) : (
-                shippingOptions.map((opt, i) => (
-                  <button
-                    key={i}
-                    onClick={() => handleSelectShipping(opt)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '16px',
-                      border: '1.5px solid var(--color-border)',
-                      borderRadius: 'var(--radius-md)',
-                      background: 'var(--color-bg)',
-                      cursor: 'pointer',
-                      transition: 'all var(--transition-fast)',
-                      textAlign: 'left',
-                      width: '100%',
-                    }}
-                    className="card"
-                  >
-                    <div>
-                      <p style={{ fontWeight: 600, fontSize: '14px' }}>{opt.courier} {opt.service}</p>
-                      <p style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Estimasi: {opt.etd}</p>
-                    </div>
-                    <span style={{ fontWeight: 700, fontSize: '14px' }}>{formatRupiah(opt.cost)}</span>
-                  </button>
-                ))
+                  (() => {
+                    const grouped: Record<string, typeof shippingOptions> = {}
+                    for (const opt of shippingOptions) {
+                      if (!grouped[opt.courier]) grouped[opt.courier] = []
+                      grouped[opt.courier].push(opt)
+                    }
+                    // Brand colors for each courier
+                    const courierColors: Record<string, string> = {
+                      JNE: '#e11d48', TIKI: '#2563eb', POS: '#f59e0b', JNT: '#e11d48',
+                      SICEPAT: '#ea580c', ANTERAJA: '#16a34a', NINJA: '#dc2626',
+                      LION: '#ef4444', IDEXPRESS: '#7c3aed',
+                    }
+                    return Object.entries(grouped).map(([courier, opts]) => (
+                      <div key={courier} style={{ marginBottom: '8px' }}>
+                        <p style={{ fontWeight: 700, fontSize: '13px', marginBottom: '6px', color: courierColors[courier] || '#6b7280' }}>
+                          {courier} <span style={{ fontWeight: 400, color: 'var(--color-text-muted)', fontSize: '11px' }}>— {opts.length} layanan</span>
+                        </p>
+                        {opts.map((opt, i) => (
+                          <button key={`${courier}-${i}`} onClick={() => handleSelectShipping(opt)}
+                            className="card"
+                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', border: '1.5px solid var(--color-border)', borderRadius: 'var(--radius-md)', background: 'var(--color-bg)', cursor: 'pointer', textAlign: 'left', width: '100%', marginBottom: '6px' }}
+                          >
+                            <div>
+                              <p style={{ fontWeight: 600, fontSize: '14px', marginBottom: '2px' }}>{opt.service}</p>
+                              {opt.description && <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginBottom: '2px' }}>{opt.description}</p>}
+                              <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>Estimasi: {opt.etd}</p>
+                            </div>
+                            <span style={{ fontWeight: 700, fontSize: '15px', whiteSpace: 'nowrap', color: 'var(--color-primary)' }}>{formatRupiah(opt.cost)}</span>
+                          </button>
+                        ))}
+                      </div>
+                    ))
+                  })()
                 )}
               </div>
 
@@ -1133,7 +1176,6 @@ export default function CheckoutPage() {
           )}
         </div>
       </main>
-      <MobileNav />
-    </>
+</>
   )
 }

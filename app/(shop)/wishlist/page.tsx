@@ -2,9 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { Heart, Loader2, ShoppingBag } from 'lucide-react'
-import Header from '@/components/layout/Header'
-import MobileNav from '@/components/layout/MobileNav'
-import Footer from '@/components/layout/Footer'
 import ProductCard from '@/components/product/ProductCard'
 import Link from 'next/link'
 
@@ -30,8 +27,7 @@ export default function WishlistPage() {
 
   return (
     <>
-      <Header />
-      <main className="container" style={{ paddingTop: '24px', paddingBottom: '100px', minHeight: '60vh' }}>
+<main className="container" style={{ paddingTop: '24px', paddingBottom: '100px', minHeight: '60vh' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '24px' }}>
           <Heart size={24} style={{ color: 'var(--color-danger)' }} />
           <h1 style={{ fontSize: '1.5rem' }}>Wishlist</h1>
@@ -81,8 +77,6 @@ export default function WishlistPage() {
           </div>
         )}
       </main>
-      <Footer />
-      <MobileNav />
-    </>
+</>
   )
 }

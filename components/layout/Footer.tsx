@@ -22,6 +22,7 @@ export default function Footer() {
           <div>
             <h4 className="footer__title">Informasi</h4>
             <Link href="/about" className="footer__link">Tentang Kami</Link>
+            <Link href="/hubungi-kami" className="footer__link">Hubungi Kami</Link>
             <Link href="/faq" className="footer__link">FAQ</Link>
             <Link href="/privacy" className="footer__link">Kebijakan Privasi</Link>
             <Link href="/terms" className="footer__link">Syarat & Ketentuan</Link>

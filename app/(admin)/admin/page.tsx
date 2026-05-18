@@ -5,7 +5,7 @@ import Link from 'next/link'
 import {
   Package, ShoppingCart, Users, TrendingUp, ArrowRight,
   Clock, AlertTriangle, CheckCircle, Truck, CreditCard,
-  Eye, PackageOpen
+  Eye, PackageOpen, Warehouse
 } from 'lucide-react'
 import type { Metadata } from 'next'
 
@@ -60,6 +60,8 @@ export default async function AdminDashboard() {
     { data: lowStockProducts },
     { count: pendingPaymentCount },
     { count: paidCount },
+    { data: allProductsStock },
+    { data: allVariantsStock },
   ] = await Promise.all([
     supabase.from('products').select('*', { count: 'exact', head: true }),
     supabase.from('orders').select('*', { count: 'exact', head: true }),
@@ -70,9 +72,16 @@ export default async function AdminDashboard() {
     supabase.from('products').select('id, name, stock, price').lte('stock', 5).order('stock', { ascending: true }).limit(5),
     supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'pending_payment'),
     supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'paid'),
+    supabase.from('products').select('stock'),
+    supabase.from('product_variants').select('stock'),
   ])
 
   const totalRevenue = revenueData?.reduce((sum, o) => sum + (o.total || 0), 0) || 0
+
+  // Calculate total stock: products without variants use products.stock, products with variants use product_variants.stock
+  const productStock = allProductsStock?.reduce((sum, p) => sum + (p.stock || 0), 0) || 0
+  const variantStock = allVariantsStock?.reduce((sum, v) => sum + (v.stock || 0), 0) || 0
+  const totalStock = productStock + variantStock
 
   const statusCounts: Record<string, number> = {}
   allOrders?.forEach((o) => {
@@ -84,6 +93,7 @@ export default async function AdminDashboard() {
     { label: 'Total Pendapatan', value: formatRupiah(totalRevenue), icon: TrendingUp, color: '#10b981', desc: 'Dari pesanan terbayar' },
     { label: 'Total Pesanan', value: totalOrders?.toString() || '0', icon: ShoppingCart, color: '#3b82f6', desc: 'Semua pesanan' },
     { label: 'Total Produk', value: totalProducts?.toString() || '0', icon: Package, color: '#8b5cf6', desc: 'Aktif di katalog' },
+    { label: 'Total Stok', value: totalStock.toLocaleString('id-ID'), icon: Warehouse, color: '#ec4899', desc: 'Semua produk & varian' },
     { label: 'Total Pengguna', value: totalUsers?.toString() || '0', icon: Users, color: '#f59e0b', desc: 'Pengguna terdaftar' },
   ]
 

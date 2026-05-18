@@ -1,6 +1,3 @@
-import Header from '@/components/layout/Header'
-import MobileNav from '@/components/layout/MobileNav'
-import Footer from '@/components/layout/Footer'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
@@ -11,8 +8,7 @@ export const metadata: Metadata = {
 export default function TermsPage() {
   return (
     <>
-      <Header />
-      <main className="container" style={{ paddingTop: '32px', paddingBottom: '100px', maxWidth: '720px' }}>
+<main className="container" style={{ paddingTop: '32px', paddingBottom: '100px', maxWidth: '720px' }}>
         <h1 style={{ fontSize: '1.75rem', marginBottom: '24px' }}>Syarat & Ketentuan</h1>
 
         <div className="static-content">
@@ -70,8 +66,6 @@ export default function TermsPage() {
           </p>
         </div>
       </main>
-      <Footer />
-      <MobileNav />
-    </>
+</>
   )
 }

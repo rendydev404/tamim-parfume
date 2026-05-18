@@ -5,9 +5,6 @@ import Link from 'next/link'
 import { Trash2, Plus, Minus, ShoppingBag, ArrowRight, Droplets } from 'lucide-react'
 import { useCartStore, type CartItem } from '@/stores/cart-store'
 import { formatRupiah } from '@/lib/utils'
-import Header from '@/components/layout/Header'
-import MobileNav from '@/components/layout/MobileNav'
-
 export default function CartPage() {
   const { items, removeItem, updateQuantity, getTotalPrice, clearCart } = useCartStore()
   const [mounted, setMounted] = useState(false)
@@ -19,21 +16,18 @@ export default function CartPage() {
   if (!mounted) {
     return (
       <>
-        <Header />
-        <main className="page-content">
+<main className="page-content">
           <div className="container" style={{ paddingTop: '24px' }}>
             <div className="skeleton" style={{ height: '200px', borderRadius: 'var(--radius-lg)' }} />
           </div>
         </main>
-        <MobileNav />
-      </>
+</>
     )
   }
 
   return (
     <>
-      <Header />
-      <main className="page-content">
+<main className="page-content">
         <div className="container" style={{ paddingTop: '24px', paddingBottom: '40px' }}>
           <h1 style={{ fontSize: '1.5rem', marginBottom: '24px' }}>Keranjang Belanja</h1>
 
@@ -187,7 +181,6 @@ export default function CartPage() {
           )}
         </div>
       </main>
-      <MobileNav />
-    </>
+</>
   )
 }

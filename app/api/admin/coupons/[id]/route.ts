@@ -44,6 +44,11 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   if (profile?.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { error } = await supabase.from('coupons').delete().eq('id', id)
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    if (error.code === '23503' || error.message.includes('foreign key')) {
+      return NextResponse.json({ error: 'Kupon ini sudah pernah digunakan pada pesanan dan tidak dapat dihapus. Silakan nonaktifkan kupon ini.' }, { status: 400 })
+    }
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
   return NextResponse.json({ success: true })
 }

@@ -75,7 +75,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   // Get order items for stock management
   const { data: orderItems } = await supabase
     .from('order_items')
-    .select('product_id, quantity')
+    .select('product_id, variant_id, quantity')
     .eq('order_id', id)
 
   // ============================================================
@@ -87,17 +87,32 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   if (newStatus === 'cancelled') {
     if (orderItems) {
       for (const item of orderItems) {
-        if (!item.product_id) continue
-        const { data: product } = await supabase
-          .from('products')
-          .select('stock')
-          .eq('id', item.product_id)
-          .single()
-        if (product) {
-          await supabase
+        if (item.variant_id) {
+          // Restore variant stock
+          const { data: variant } = await supabase
+            .from('product_variants')
+            .select('stock')
+            .eq('id', item.variant_id)
+            .single()
+          if (variant) {
+            await supabase
+              .from('product_variants')
+              .update({ stock: variant.stock + item.quantity })
+              .eq('id', item.variant_id)
+          }
+        } else if (item.product_id) {
+          // Restore product stock
+          const { data: product } = await supabase
             .from('products')
-            .update({ stock: product.stock + item.quantity })
+            .select('stock')
             .eq('id', item.product_id)
+            .single()
+          if (product) {
+            await supabase
+              .from('products')
+              .update({ stock: product.stock + item.quantity })
+              .eq('id', item.product_id)
+          }
         }
       }
     }

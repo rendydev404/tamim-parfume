@@ -39,15 +39,30 @@ async function autoCancelExpiredOrders(supabase: Awaited<ReturnType<typeof creat
           })
           .eq('id', order.id)
 
-        // Restore product stock
+        // Restore product/variant stock
         const { data: orderItems } = await supabase
           .from('order_items')
-          .select('product_id, quantity')
+          .select('product_id, variant_id, quantity')
           .eq('order_id', order.id)
 
         if (orderItems) {
           for (const item of orderItems) {
-            if (item.product_id) {
+            if (item.variant_id) {
+              // Restore variant stock
+              const { data: variant } = await supabase
+                .from('product_variants')
+                .select('stock')
+                .eq('id', item.variant_id)
+                .single()
+
+              if (variant) {
+                await supabase
+                  .from('product_variants')
+                  .update({ stock: variant.stock + item.quantity })
+                  .eq('id', item.variant_id)
+              }
+            } else if (item.product_id) {
+              // Restore product stock
               const { data: product } = await supabase
                 .from('products')
                 .select('stock')

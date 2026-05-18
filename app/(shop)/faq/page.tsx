@@ -1,9 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import Header from '@/components/layout/Header'
-import MobileNav from '@/components/layout/MobileNav'
-import Footer from '@/components/layout/Footer'
 import { ChevronDown, HelpCircle } from 'lucide-react'
 
 const faqs = [
@@ -68,8 +65,7 @@ function FAQItem({ q, a }: { q: string; a: string }) {
 export default function FAQPage() {
   return (
     <>
-      <Header />
-      <main className="container" style={{ paddingTop: '32px', paddingBottom: '100px', maxWidth: '720px' }}>
+<main className="container" style={{ paddingTop: '32px', paddingBottom: '100px', maxWidth: '720px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '24px' }}>
           <HelpCircle size={24} style={{ color: 'var(--color-primary)' }} />
           <h1 style={{ fontSize: '1.75rem' }}>Pertanyaan Umum (FAQ)</h1>
@@ -81,8 +77,6 @@ export default function FAQPage() {
           ))}
         </div>
       </main>
-      <Footer />
-      <MobileNav />
-    </>
+</>
   )
 }

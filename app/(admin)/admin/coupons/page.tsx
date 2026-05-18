@@ -124,14 +124,19 @@ export default function AdminCouponsPage() {
     } catch { toast.error('Gagal mengubah status') }
   }
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (coupon: Coupon) => {
+    if (coupon.used_count > 0) {
+      toast.error('Kupon yang sudah terpakai tidak bisa dihapus. Silakan nonaktifkan kupon.')
+      return
+    }
     if (!confirm('Hapus kupon ini? Tindakan ini tidak dapat dibatalkan.')) return
     try {
-      const res = await fetch(`/api/admin/coupons/${id}`, { method: 'DELETE' })
-      if (!res.ok) throw new Error()
+      const res = await fetch(`/api/admin/coupons/${coupon.id}`, { method: 'DELETE' })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Gagal menghapus kupon')
       toast.success('Kupon dihapus')
       loadCoupons()
-    } catch { toast.error('Gagal menghapus kupon') }
+    } catch (err: any) { toast.error(err.message || 'Gagal menghapus kupon') }
   }
 
   const handleCopy = (code: string, id: string) => {
@@ -453,7 +458,7 @@ export default function AdminCouponsPage() {
                       <Edit2 size={16} />
                     </button>
                     <button
-                      onClick={() => handleDelete(coupon.id)}
+                      onClick={() => handleDelete(coupon)}
                       title="Hapus"
                       style={{
                         background: 'none',

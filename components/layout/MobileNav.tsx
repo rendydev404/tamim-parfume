@@ -17,13 +17,45 @@ export default function MobileNav() {
   const pathname = usePathname()
   const totalItems = useCartStore((s) => s.getTotalItems())
   const [mounted, setMounted] = useState(false)
+  const [isHiddenOnHome, setIsHiddenOnHome] = useState(false)
+
+  useEffect(() => {
+    if (pathname !== '/') {
+      setIsHiddenOnHome(false)
+      return
+    }
+    const handleScroll = () => {
+      if (window.scrollY < 50) {
+        setIsHiddenOnHome(false)
+      } else if (window.scrollY < window.innerHeight * 3.8) {
+        setIsHiddenOnHome(true)
+      } else {
+        setIsHiddenOnHome(false)
+      }
+    }
+    handleScroll()
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    window.addEventListener('resize', handleScroll, { passive: true })
+    return () => {
+      window.removeEventListener('scroll', handleScroll)
+      window.removeEventListener('resize', handleScroll)
+    }
+  }, [pathname])
 
   useEffect(() => {
     setMounted(true)
   }, [])
 
   return (
-    <nav className="mobile-nav">
+    <nav 
+      className="mobile-nav"
+      style={{
+        transform: isHiddenOnHome ? 'translateY(100%)' : 'translateY(0)',
+        opacity: isHiddenOnHome ? 0 : 1,
+        transition: 'transform 0.4s ease, opacity 0.4s ease',
+        pointerEvents: isHiddenOnHome ? 'none' : 'auto'
+      }}
+    >
       {navItems.map((item) => {
         const isActive =
           item.href === '/'

@@ -3,6 +3,7 @@ import { ArrowRight, Sparkles, Shield, Truck, User, Heart, Moon, Stars } from 'l
 import { createClient } from '@/lib/supabase/server'
 import ProductCard from '@/components/product/ProductCard'
 import PromoBanner from '@/components/layout/PromoBanner'
+import ImageSequence from '@/components/ui/ImageSequence'
 
 export const revalidate = 60 // ISR: revalidate every 60s
 
@@ -48,29 +49,56 @@ export default async function HomePage() {
 
   return (
     <>
-      {/* Promo Banner */}
+      {/* Promo Banner Top */}
       <PromoBanner />
 
-      {/* Hero Section */}
-      <section className="hero">
-        <div className="hero__bg-pattern" />
+      {/* Hero Image Sequence */}
+      <ImageSequence />
+
+      {/* Original Hero converted to Promo Banner Section */}
+      <section style={{ 
+        background: 'var(--color-bg)', 
+        borderBottom: '1px solid var(--color-border-light)',
+        padding: '60px 0',
+        textAlign: 'center'
+      }}>
         <div className="container">
-          <div className="hero__content">
-            <p className="hero__subtitle">✦ Premium Collection</p>
-            <h1 className="hero__title">Temukan Aroma Signature Anda</h1>
-            <p className="hero__description">
+          <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+            <p style={{ 
+              color: 'var(--color-accent)', 
+              fontWeight: 600, 
+              fontSize: '14px', 
+              letterSpacing: '0.05em',
+              marginBottom: '16px',
+              textTransform: 'uppercase'
+            }}>
+              ✦ Premium Collection
+            </p>
+            <h2 style={{ 
+              fontSize: '2.5rem', 
+              marginBottom: '20px', 
+              fontFamily: 'var(--font-heading)' 
+            }}>
+              Temukan Aroma Signature Anda
+            </h2>
+            <p style={{ 
+              color: 'var(--color-text-secondary)', 
+              fontSize: '1.1rem', 
+              marginBottom: '32px',
+              lineHeight: 1.6
+            }}>
               Koleksi parfum premium pilihan dari seluruh dunia. 
               Dari Arabian oud hingga designer fragrance, temukan wangi yang mendefinisikan Anda.
             </p>
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', flexWrap: 'wrap' }}>
               <Link href="/products" className="btn btn-accent btn-lg">
                 Jelajahi Koleksi
                 <ArrowRight size={18} />
               </Link>
               <Link href="/products?category=arabian" className="btn btn-lg" style={{ 
-                background: 'transparent', 
-                color: 'white', 
-                border: '1.5px solid rgba(255,255,255,0.3)' 
+                background: 'var(--color-bg-secondary)', 
+                color: 'var(--color-text)', 
+                border: '1px solid var(--color-border-light)' 
               }}>
                 Arabian Collection
               </Link>

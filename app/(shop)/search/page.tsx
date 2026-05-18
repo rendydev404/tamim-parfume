@@ -1,7 +1,4 @@
 import { createClient } from '@/lib/supabase/server'
-import Header from '@/components/layout/Header'
-import MobileNav from '@/components/layout/MobileNav'
-import Footer from '@/components/layout/Footer'
 import ProductCard from '@/components/product/ProductCard'
 import { Search } from 'lucide-react'
 import Link from 'next/link'
@@ -40,8 +37,7 @@ export default async function SearchPage({ searchParams }: Props) {
 
   return (
     <>
-      <Header />
-      <main className="container" style={{ paddingTop: '24px', paddingBottom: '100px', minHeight: '60vh' }}>
+<main className="container" style={{ paddingTop: '24px', paddingBottom: '100px', minHeight: '60vh' }}>
         <h1 style={{ fontSize: '1.5rem', marginBottom: '8px' }}>
           {query ? `Hasil pencarian "${query}"` : 'Cari Produk'}
         </h1>
@@ -94,8 +90,6 @@ export default async function SearchPage({ searchParams }: Props) {
           </div>
         )}
       </main>
-      <Footer />
-      <MobileNav />
-    </>
+</>
   )
 }

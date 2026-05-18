@@ -1,6 +1,3 @@
-import Header from '@/components/layout/Header'
-import MobileNav from '@/components/layout/MobileNav'
-import Footer from '@/components/layout/Footer'
 import { Store, Award, Heart, Shield } from 'lucide-react'
 import type { Metadata } from 'next'
 
@@ -12,8 +9,7 @@ export const metadata: Metadata = {
 export default function AboutPage() {
   return (
     <>
-      <Header />
-      <main className="container" style={{ paddingTop: '32px', paddingBottom: '100px', maxWidth: '720px' }}>
+<main className="container" style={{ paddingTop: '32px', paddingBottom: '100px', maxWidth: '720px' }}>
         <h1 style={{ fontSize: '1.75rem', marginBottom: '12px' }}>Tentang Kami</h1>
         <p style={{ fontSize: '15px', color: 'var(--color-text-secondary)', lineHeight: 1.8, marginBottom: '32px' }}>
           <strong>TAMIM PARFUME</strong> adalah toko parfum premium terpercaya yang menawarkan koleksi
@@ -50,8 +46,6 @@ export default function AboutPage() {
           </p>
         </div>
       </main>
-      <Footer />
-      <MobileNav />
-    </>
+</>
   )
 }

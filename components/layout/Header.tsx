@@ -37,6 +37,31 @@ export default function Header() {
   const [authChecked, setAuthChecked] = useState(false)
   const totalItems = useCartStore((s) => s.getTotalItems())
   const [mounted, setMounted] = useState(false)
+  const [isHiddenOnHome, setIsHiddenOnHome] = useState(false)
+
+  useEffect(() => {
+    if (pathname !== '/') {
+      setIsHiddenOnHome(false)
+      return
+    }
+    const handleScroll = () => {
+      // Show at very top, hide during sequence, show after sequence
+      if (window.scrollY < 50) {
+        setIsHiddenOnHome(false)
+      } else if (window.scrollY < window.innerHeight * 3.8) {
+        setIsHiddenOnHome(true)
+      } else {
+        setIsHiddenOnHome(false)
+      }
+    }
+    handleScroll()
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    window.addEventListener('resize', handleScroll, { passive: true })
+    return () => {
+      window.removeEventListener('scroll', handleScroll)
+      window.removeEventListener('resize', handleScroll)
+    }
+  }, [pathname])
 
   useEffect(() => {
     setMounted(true)
@@ -90,7 +115,15 @@ export default function Header() {
 
   return (
     <>
-      <header className="header">
+      <header 
+        className="header"
+        style={{
+          transform: isHiddenOnHome ? 'translateY(-100%)' : 'translateY(0)',
+          opacity: isHiddenOnHome ? 0 : 1,
+          transition: 'transform 0.4s ease, opacity 0.4s ease',
+          pointerEvents: isHiddenOnHome ? 'none' : 'auto'
+        }}
+      >
         <div className="header__inner">
           {/* Logo */}
           <Link href="/" className="header__logo">

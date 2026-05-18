@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Toaster } from "react-hot-toast";
 import ChatWidget from "@/components/chat/ChatWidget";
+import BanOverlay from "@/components/auth/BanOverlay";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -39,6 +40,7 @@ export default function RootLayout({
   return (
     <html lang="id">
       <body>
+        <BanOverlay />
         {children}
         <ChatWidget />
         <Toaster
