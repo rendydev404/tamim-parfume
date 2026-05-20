@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useCartStore } from '@/stores/cart-store'
 import { formatRupiah } from '@/lib/utils'
@@ -58,7 +58,7 @@ interface StreetSuggestion {
   postcode: string
 }
 
-export default function CheckoutPage() {
+function CheckoutContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { items: cartItems, getTotalPrice, getTotalWeight, clearCart } = useCartStore()
@@ -1177,5 +1177,19 @@ export default function CheckoutPage() {
         </div>
       </main>
 </>
+  )
+}
+
+export default function CheckoutPage() {
+  return (
+    <Suspense fallback={
+      <main className="page-content">
+        <div className="container" style={{ display: 'flex', justifyContent: 'center', padding: '80px 0' }}>
+          <div className="animate-spin" style={{ width: '32px', height: '32px', border: '3px solid var(--color-border)', borderTopColor: 'var(--color-primary)', borderRadius: '50%' }} />
+        </div>
+      </main>
+    }>
+      <CheckoutContent />
+    </Suspense>
   )
 }

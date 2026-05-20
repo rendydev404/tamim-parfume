@@ -17,8 +17,8 @@ export async function GET(request: NextRequest) {
 
   try {
     const services = await calculateAllCouriers({
-      origin,
-      destination,
+      origin: parseInt(origin),
+      destination: parseInt(destination),
       weight: Math.max(weight, 100), // minimum 100 gram
     })
 
