@@ -5,7 +5,7 @@ import Link from 'next/link'
 import {
   Package, ShoppingCart, Users, TrendingUp, ArrowRight,
   Clock, AlertTriangle, CheckCircle, Truck, CreditCard,
-  Eye, PackageOpen, Warehouse
+  Eye, PackageOpen, Warehouse, Crown, Flame, Award
 } from 'lucide-react'
 import type { Metadata } from 'next'
 
@@ -62,6 +62,7 @@ export default async function AdminDashboard() {
     { count: paidCount },
     { data: allProductsStock },
     { data: allVariantsStock },
+    { data: ordersForSales },
   ] = await Promise.all([
     supabase.from('products').select('*', { count: 'exact', head: true }),
     supabase.from('orders').select('*', { count: 'exact', head: true }),
@@ -74,7 +75,68 @@ export default async function AdminDashboard() {
     supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'paid'),
     supabase.from('products').select('stock'),
     supabase.from('product_variants').select('stock'),
+    supabase.from('orders').select('items:order_items(product_id, product_name, product_image, quantity, price, product:products(name, slug, images:product_images(url, is_primary)))').in('status', ['paid', 'processing', 'shipped', 'delivered', 'completed']),
   ])
+
+  // Aggregating sales data for Top 5 Bestselling Products
+  const salesMap: Record<string, {
+    id: string
+    name: string
+    image: string | null
+    slug: string | null
+    salesCount: number
+    revenue: number
+  }> = {}
+
+  const isVid = (url: string) => url && (/\.(mp4|webm|ogg|mov)$/i.test(url) || url.includes('video') || url.includes('.mp4'));
+
+  ordersForSales?.forEach((order) => {
+    const items = (order.items || []) as any[]
+    items.forEach((item) => {
+      const prodId = item.product_id || 'unknown'
+      const name = item.product_name || item.product?.name || 'Produk Tanpa Nama'
+      const slug = item.product?.slug || null
+      
+      const productImages = item.product?.images || []
+      let image = item.product_image || null
+
+      // If the primary image is a video, find a static non-video image from the product relation
+      if (image && isVid(image)) {
+        const nonVidImg = productImages.find((img: any) => !isVid(img.url))
+        image = nonVidImg?.url || null
+      }
+
+      // If there is no order item image or it is resolved to null, search in product relation images
+      if (!image) {
+        const primaryImg = productImages.find((img: any) => img.is_primary && !isVid(img.url)) || productImages.find((img: any) => !isVid(img.url))
+        image = primaryImg?.url || null
+      }
+
+      const quantity = item.quantity || 0
+      const price = item.price || 0
+      const revenue = quantity * price
+
+      if (!salesMap[prodId]) {
+        salesMap[prodId] = {
+          id: prodId,
+          name,
+          image,
+          slug,
+          salesCount: 0,
+          revenue: 0
+        }
+      }
+      salesMap[prodId].salesCount += quantity
+      salesMap[prodId].revenue += revenue
+    })
+  })
+
+  const topProducts = Object.values(salesMap)
+    .sort((a, b) => b.salesCount - a.salesCount)
+    .slice(0, 5)
+
+  // Find max sales count for proportional progress bars
+  const maxSalesCount = topProducts.length > 0 ? topProducts[0].salesCount : 1
 
   const totalRevenue = revenueData?.reduce((sum, o) => sum + (o.total || 0), 0) || 0
 
@@ -242,109 +304,243 @@ export default async function AdminDashboard() {
         )}
       </div>
 
-      {/* Two-column: Low Stock + Activity */}
+      {/* Two-column Layout: Top 5 Bestselling Products vs Stok Rendah + Aktivitas Terbaru */}
       <div id="dashboard-bottom" style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(2, 1fr)',
         gap: '24px',
         marginBottom: '24px',
       }}>
-        {/* Low Stock Products */}
-        <div className="card" style={{ padding: '20px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-            <h3 style={{ fontSize: '14px', fontWeight: 600, fontFamily: 'var(--font-body)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <AlertTriangle size={16} style={{ color: '#f59e0b' }} />
-              Stok Rendah
+        {/* Left Column: Top 5 Bestselling Products */}
+        <div className="card" style={{ padding: '20px', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+            <h3 style={{ fontSize: '14px', fontWeight: 600, fontFamily: 'var(--font-body)', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+              <Crown size={16} style={{ color: '#f59e0b' }} />
+              Top 5 Produk Terlaris
             </h3>
-            <Link href="/admin/products" style={{ fontSize: '12px', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: '4px', textDecoration: 'none' }}>
-              Lihat Semua <ArrowRight size={12} />
-            </Link>
+            <span style={{
+              fontSize: '11px', fontWeight: 600, color: '#10b981',
+              background: 'rgba(16, 185, 129, 0.08)', padding: '2px 8px', borderRadius: '12px'
+            }}>
+              Performa Terbaik
+            </span>
           </div>
-          {lowStockProducts && lowStockProducts.length > 0 ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {lowStockProducts.map((product) => (
-                <Link
-                  key={product.id}
-                  href={`/admin/products/${product.id}/edit`}
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px',
-                    padding: '10px 12px', borderRadius: 'var(--radius-md)', background: 'var(--color-bg-secondary)',
-                    textDecoration: 'none', color: 'inherit',
-                  }}
-                >
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <p style={{ fontSize: '13px', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {product.name}
-                    </p>
-                    <p style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{formatRupiah(product.price)}</p>
-                  </div>
-                  <span style={{
-                    display: 'inline-flex', padding: '2px 8px', fontSize: '11px', fontWeight: 600,
-                    borderRadius: 'var(--radius-sm)',
-                    background: product.stock === 0 ? '#fee2e2' : '#fef3c7',
-                    color: product.stock === 0 ? '#991b1b' : '#92400e',
-                    whiteSpace: 'nowrap',
-                  }}>
-                    {product.stock === 0 ? 'Habis' : `Sisa ${product.stock}`}
-                  </span>
-                </Link>
-              ))}
-            </div>
-          ) : (
-            <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', textAlign: 'center', padding: '24px' }}>
-              Semua produk stoknya aman 👍
-            </p>
-          )}
-        </div>
 
-        {/* Activity Timeline */}
-        <div className="card" style={{ padding: '20px' }}>
-          <h3 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px', fontFamily: 'var(--font-body)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Clock size={16} style={{ color: 'var(--color-text-muted)' }} />
-            Aktivitas Terbaru
-          </h3>
-          {recentOrders && recentOrders.length > 0 ? (
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {recentOrders.slice(0, 5).map((order, idx) => {
-                const statusInfo = ORDER_STATUS[order.status] || { label: order.status, color: '#999' }
-                const style = activityStyle(order.status)
-                const ActivityIcon = style.Icon
+          {topProducts && topProducts.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', flex: 1 }}>
+              {topProducts.map((product, idx) => {
+                const isGold = idx === 0
+                const isSilver = idx === 1
+                const isBronze = idx === 2
+                
+                let badgeBg = '#f3f4f6'
+                let badgeColor = '#4b5563'
+                let borderStyle = '1px solid var(--color-border-light)'
+                
+                if (isGold) {
+                  badgeBg = 'linear-gradient(135deg, #fcd34d, #f59e0b)'
+                  badgeColor = '#ffffff'
+                  borderStyle = 'none'
+                } else if (isSilver) {
+                  badgeBg = 'linear-gradient(135deg, #f1f5f9, #cbd5e1)'
+                  badgeColor = '#334155'
+                  borderStyle = 'none'
+                } else if (isBronze) {
+                  badgeBg = 'linear-gradient(135deg, #ffedd5, #f97316)'
+                  badgeColor = '#ffffff'
+                  borderStyle = 'none'
+                }
+
+                const percentage = Math.round((product.salesCount / maxSalesCount) * 100)
+                const isVid = (url: string) => url && (/\.(mp4|webm|ogg|mov)$/i.test(url) || url.includes('video') || url.includes('.mp4'));
+                
+                let displayImg = product.image;
+                if (displayImg && isVid(displayImg)) {
+                  displayImg = null;
+                }
+
                 return (
-                  <div
-                    key={order.id}
-                    style={{
-                      display: 'flex', gap: '12px', padding: '10px 0',
-                      borderBottom: idx < Math.min(recentOrders.length, 5) - 1 ? '1px solid var(--color-border-light)' : 'none',
-                    }}
-                  >
-                    <div style={{
-                      width: '32px', height: '32px', borderRadius: '50%', background: style.bg,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                    }}>
-                      <ActivityIcon size={14} style={{ color: style.color }} />
+                  <div key={product.id} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', justifyContent: 'space-between' }}>
+                      {/* Left side: Rank + Product Image + Product Name */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
+                        {/* Rank Badge */}
+                        <div style={{
+                          width: '24px', height: '24px', borderRadius: '50%',
+                          background: badgeBg, color: badgeColor,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: '12px', fontWeight: 700, flexShrink: 0,
+                          border: borderStyle,
+                          boxShadow: (isGold || isSilver || isBronze) ? '0 2px 4px rgba(0,0,0,0.06)' : 'none'
+                        }}>
+                          {idx + 1}
+                        </div>
+
+                        {/* Product Image */}
+                        <div style={{
+                          width: '36px', height: '36px', borderRadius: '6px',
+                          background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border-light)',
+                          overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center'
+                        }}>
+                          {displayImg ? (
+                            <img src={displayImg} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          ) : (
+                            <Flame size={14} style={{ color: 'var(--color-text-muted)', opacity: 0.5 }} />
+                          )}
+                        </div>
+
+                        {/* Product Name */}
+                        <span style={{ fontSize: '13px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--color-text-primary)' }}>
+                          {product.name}
+                        </span>
+                      </div>
+
+                      {/* Right side: Count + Revenue */}
+                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                        <span style={{
+                          display: 'inline-block', padding: '2px 8px', fontSize: '11px', fontWeight: 700,
+                          borderRadius: '12px', background: 'rgba(16, 185, 129, 0.08)', color: '#10b981',
+                          marginBottom: '2px'
+                        }}>
+                          {product.salesCount} Terjual
+                        </span>
+                        <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', margin: 0, fontWeight: 500 }}>
+                          {formatRupiah(product.revenue)}
+                        </p>
+                      </div>
                     </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontSize: '13px', lineHeight: 1.4 }}>
-                        <strong>{order.recipient_name || 'Pelanggan'}</strong>
-                        {' — '}
-                        <span style={{ color: statusInfo.color, fontWeight: 600 }}>{statusInfo.label}</span>
-                      </p>
-                      <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
-                        #{order.order_number} · {formatRupiah(order.total)}
-                      </p>
-                      <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
-                        {timeAgo(order.created_at)}
-                      </p>
+
+                    {/* Proportional Progress Bar */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingLeft: '34px' }}>
+                      <div style={{
+                        flex: 1, height: '5px', borderRadius: '3px',
+                        background: 'var(--color-bg-secondary)', overflow: 'hidden'
+                      }}>
+                        <div style={{
+                          width: `${percentage}%`, height: '100%', borderRadius: '3px',
+                          background: isGold
+                            ? 'linear-gradient(90deg, #f59e0b, #10b981)'
+                            : 'var(--color-text-secondary)',
+                          transition: 'width 0.4s ease'
+                        }} />
+                      </div>
+                      <span style={{ fontSize: '10px', color: 'var(--color-text-muted)', fontWeight: 500, width: '24px', textAlign: 'right' }}>
+                        {percentage}%
+                      </span>
                     </div>
                   </div>
                 )
               })}
             </div>
           ) : (
-            <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', textAlign: 'center', padding: '24px' }}>
-              Belum ada aktivitas
-            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, padding: '40px 0' }}>
+              <Flame size={32} style={{ color: 'var(--color-text-muted)', opacity: 0.3, marginBottom: '12px' }} />
+              <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: 0 }}>
+                Belum ada data penjualan produk terlaris
+              </p>
+            </div>
           )}
+        </div>
+
+        {/* Right Column: Stacked Stok Rendah + Aktivitas Terbaru */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          {/* Low Stock Products */}
+          <div className="card" style={{ padding: '20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+              <h3 style={{ fontSize: '14px', fontWeight: 600, fontFamily: 'var(--font-body)', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+                <AlertTriangle size={16} style={{ color: '#f59e0b' }} />
+                Stok Rendah
+              </h3>
+              <Link href="/admin/products" style={{ fontSize: '12px', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: '4px', textDecoration: 'none' }}>
+                Lihat Semua <ArrowRight size={12} />
+              </Link>
+            </div>
+            {lowStockProducts && lowStockProducts.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {lowStockProducts.map((product) => (
+                  <Link
+                    key={product.id}
+                    href={`/admin/products/${product.id}/edit`}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px',
+                      padding: '10px 12px', borderRadius: 'var(--radius-md)', background: 'var(--color-bg-secondary)',
+                      textDecoration: 'none', color: 'inherit',
+                    }}
+                  >
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <p style={{ fontSize: '13px', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0 }}>
+                        {product.name}
+                      </p>
+                      <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', margin: 0 }}>{formatRupiah(product.price)}</p>
+                    </div>
+                    <span style={{
+                      display: 'inline-flex', padding: '2px 8px', fontSize: '11px', fontWeight: 600,
+                      borderRadius: 'var(--radius-sm)',
+                      background: product.stock === 0 ? '#fee2e2' : '#fef3c7',
+                      color: product.stock === 0 ? '#991b1b' : '#92400e',
+                      whiteSpace: 'nowrap',
+                    }}>
+                      {product.stock === 0 ? 'Habis' : `Sisa ${product.stock}`}
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', textAlign: 'center', padding: '24px', margin: 0 }}>
+                Semua produk stoknya aman 👍
+              </p>
+            )}
+          </div>
+
+          {/* Activity Timeline */}
+          <div className="card" style={{ padding: '20px' }}>
+            <h3 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px', fontFamily: 'var(--font-body)', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+              <Clock size={16} style={{ color: 'var(--color-text-muted)' }} />
+              Aktivitas Terbaru
+            </h3>
+            {recentOrders && recentOrders.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                {recentOrders.slice(0, 5).map((order, idx) => {
+                  const statusInfo = ORDER_STATUS[order.status] || { label: order.status, color: '#999' }
+                  const style = activityStyle(order.status)
+                  const ActivityIcon = style.Icon
+                  return (
+                    <div
+                      key={order.id}
+                      style={{
+                        display: 'flex', gap: '12px', padding: '10px 0',
+                        borderBottom: idx < Math.min(recentOrders.length, 5) - 1 ? '1px solid var(--color-border-light)' : 'none',
+                      }}
+                    >
+                      <div style={{
+                        width: '32px', height: '32px', borderRadius: '50%', background: style.bg,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                      }}>
+                        <ActivityIcon size={14} style={{ color: style.color }} />
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ fontSize: '13px', lineHeight: 1.4, margin: 0 }}>
+                          <strong>{order.recipient_name || 'Pelanggan'}</strong>
+                          {' — '}
+                          <span style={{ color: statusInfo.color, fontWeight: 600 }}>{statusInfo.label}</span>
+                        </p>
+                        <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px', margin: 0 }}>
+                          #{order.order_number} · {formatRupiah(order.total)}
+                        </p>
+                        <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px', margin: 0 }}>
+                          {timeAgo(order.created_at)}
+                        </p>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', textAlign: 'center', padding: '24px', margin: 0 }}>
+                Belum ada aktivitas
+              </p>
+            )}
+          </div>
         </div>
       </div>
 

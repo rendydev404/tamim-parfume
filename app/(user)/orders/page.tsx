@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { formatRupiah, formatDate } from '@/lib/utils'
 import { ORDER_STATUS } from '@/lib/constants'
-import { Package, Droplets, Clock, AlertTriangle } from 'lucide-react'
+import { Package, Droplets, Clock, AlertTriangle, Check } from 'lucide-react'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
@@ -116,6 +116,7 @@ interface OrderItem {
   product_id: string | null
   product: {
     name: string
+    slug: string
     images: { url: string; is_primary: boolean }[]
   } | null
 }
@@ -130,9 +131,16 @@ export default async function OrdersPage() {
 
   const { data: orders } = await supabase
     .from('orders')
-    .select('*, items:order_items(id, product_id, product_name, product_image, quantity, price, product:products(name, images:product_images(url, is_primary)))')
+    .select('*, items:order_items(id, product_id, product_name, product_image, quantity, price, product:products(name, slug, images:product_images(url, is_primary)))')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
+
+  const { data: userReviews } = await supabase
+    .from('reviews')
+    .select('product_id')
+    .eq('user_id', user.id)
+
+  const reviewedProductIds = new Set((userReviews || []).map(r => r.product_id))
 
   return (
     <div className="container" style={{ paddingTop: '24px', paddingBottom: '40px' }}>
@@ -155,111 +163,177 @@ export default async function OrdersPage() {
             })()
 
             return (
-              <Link
+              <div
                 key={order.id}
-                href={`/orders/${order.id}`}
                 className="card"
-                style={{ padding: '16px', textDecoration: 'none', display: 'block', transition: 'all 0.2s ease' }}
+                style={{ padding: '16px', display: 'block', transition: 'all 0.2s ease' }}
               >
                 {/* Header: Order number + Status */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                <Link
+                  href={`/orders/${order.id}`}
+                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', textDecoration: 'none', color: 'inherit' }}
+                >
                   <span style={{ fontSize: '14px', fontWeight: 600 }}>#{order.order_number}</span>
                   <span className="badge" style={{ background: `${status.color}20`, color: status.color, fontSize: '11px', padding: '4px 10px' }}>
                     {status.label}
                   </span>
-                </div>
+                </Link>
 
                 {/* Expiring soon warning */}
                 {isExpiringSoon && (
-                  <div style={{
-                    display: 'flex', alignItems: 'center', gap: '6px',
-                    padding: '8px 10px', borderRadius: '8px',
-                    background: 'rgba(245, 158, 11, 0.1)',
-                    border: '1px solid rgba(245, 158, 11, 0.2)',
-                    marginBottom: '12px',
-                    fontSize: '12px', color: '#f59e0b',
-                  }}>
+                  <Link
+                    href={`/orders/${order.id}`}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '6px',
+                      padding: '8px 10px', borderRadius: '8px',
+                      background: 'rgba(245, 158, 11, 0.1)',
+                      border: '1px solid rgba(245, 158, 11, 0.2)',
+                      marginBottom: '12px',
+                      fontSize: '12px', color: '#f59e0b',
+                      textDecoration: 'none',
+                    }}
+                  >
                     <AlertTriangle size={14} />
                     <span>Segera bayar sebelum pembayaran kedaluwarsa</span>
-                  </div>
+                  </Link>
                 )}
 
                 {/* Product items with images */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '12px' }}>
-                  {displayItems.map((item) => (
-                    <div key={item.id} style={{
-                      display: 'flex', alignItems: 'center', gap: '10px',
-                    }}>
-                      {/* Product image */}
-                      {(() => {
-                        const productImages = item.product?.images || []
-                        const primaryImg = productImages.find((img: { is_primary: boolean }) => img.is_primary) || productImages[0]
-                        const displayImage = item.product_image || primaryImg?.url || null
-                        const displayName = item.product_name || item.product?.name || 'Produk'
-                        return (
-                          <>
-                            <div style={{
-                              width: '48px', height: '48px',
-                              borderRadius: '8px',
-                              background: 'var(--color-bg-secondary)',
-                              flexShrink: 0,
-                              display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              overflow: 'hidden',
-                              border: '1px solid var(--color-border-light)',
+                  {displayItems.map((item) => {
+                    const productImages = item.product?.images || []
+                    const primaryImg = productImages.find((img: { is_primary: boolean }) => img.is_primary) || productImages[0]
+                    const displayImage = item.product_image || primaryImg?.url || null
+                    const displayName = item.product_name || item.product?.name || 'Produk'
+                    const isCompleted = order.status === 'delivered' || order.status === 'completed'
+                    const hasReviewed = item.product_id && reviewedProductIds.has(item.product_id)
+
+                    return (
+                      <div key={item.id} style={{
+                        display: 'flex', alignItems: 'center', gap: '10px', justifyContent: 'space-between'
+                      }}>
+                        <Link
+                          href={`/orders/${order.id}`}
+                          style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none', color: 'inherit', flex: 1, minWidth: 0 }}
+                        >
+                          {/* Product image */}
+                          <div style={{
+                            width: '48px', height: '48px',
+                            borderRadius: '8px',
+                            background: 'var(--color-bg-secondary)',
+                            flexShrink: 0,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            overflow: 'hidden',
+                            border: '1px solid var(--color-border-light)',
+                          }}>
+                            {(() => {
+                              const isVid = (url: string) => url && (/\.(mp4|webm|ogg|mov)$/i.test(url) || url.includes('video') || url.includes('.mp4'));
+                              
+                              let displayImg = displayImage;
+                              if (displayImg && isVid(displayImg)) {
+                                const productImages = item.product?.images || [];
+                                const nonVidImg = productImages.find((img: any) => !isVid(img.url));
+                                displayImg = nonVidImg?.url || displayImg;
+                              }
+
+                              return displayImg ? (
+                                <img src={displayImg} alt={displayName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              ) : (
+                                <Droplets size={18} style={{ color: 'var(--color-text-muted)', opacity: 0.5 }} />
+                              );
+                            })()}
+                          </div>
+
+                          {/* Product info */}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <p style={{
+                              fontSize: '13px', fontWeight: 500,
+                              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                              margin: 0,
                             }}>
-                              {(() => {
-                                const isVid = (url: string) => url && (/\.(mp4|webm|ogg|mov)$/i.test(url) || url.includes('video') || url.includes('.mp4'));
-                                
-                                let displayImg = displayImage;
-                                if (displayImg && isVid(displayImg)) {
-                                  const productImages = item.product?.images || [];
-                                  const nonVidImg = productImages.find((img: any) => !isVid(img.url));
-                                  displayImg = nonVidImg?.url || displayImg;
-                                }
+                              {displayName}
+                            </p>
+                            <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', margin: '2px 0 0 0' }}>
+                              {item.quantity} × {formatRupiah(item.price)}
+                            </p>
+                          </div>
+                        </Link>
 
-                                return displayImg ? (
-                                  <img src={displayImg} alt={displayName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                ) : (
-                                  <Droplets size={18} style={{ color: 'var(--color-text-muted)', opacity: 0.5 }} />
-                                );
-                              })()}
-                            </div>
-
-                            {/* Product info */}
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <p style={{
-                                fontSize: '13px', fontWeight: 500,
-                                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                                margin: 0,
-                              }}>
-                                {displayName}
-                              </p>
-                              <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', margin: '2px 0 0 0' }}>
-                                {item.quantity} × {formatRupiah(item.price)}
-                              </p>
-                            </div>
-                          </>
-                        )
-                      })()}
-                    </div>
-                  ))}
+                        {/* Beri Ulasan Button / Sudah Diulas Badge for completed orders */}
+                        {isCompleted && item.product?.slug && (
+                          hasReviewed ? (
+                            <span
+                              style={{
+                                padding: '6px 12px',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                borderRadius: '8px',
+                                background: 'rgba(16, 185, 129, 0.08)',
+                                color: '#10b981',
+                                border: '1px solid rgba(16, 185, 129, 0.15)',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                flexShrink: 0
+                              }}
+                            >
+                              <Check size={12} strokeWidth={3} /> Sudah Diulas
+                            </span>
+                          ) : (
+                            <Link
+                              href={`/products/${item.product.slug}#reviews`}
+                              className="btn"
+                              style={{
+                                padding: '6px 12px',
+                                fontSize: '12px',
+                                fontWeight: 600,
+                                borderRadius: '8px',
+                                background: '#10b981',
+                                color: '#ffffff',
+                                border: 'none',
+                                textDecoration: 'none',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0,
+                                boxShadow: '0 2px 4px rgba(16, 185, 129, 0.2)',
+                                transition: 'all 0.2s ease',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              Beri Ulasan
+                            </Link>
+                          )
+                        )}
+                      </div>
+                    )
+                  })}
 
                   {remainingCount > 0 && (
-                    <p style={{
-                      fontSize: '12px', color: 'var(--color-text-muted)',
-                      margin: 0, paddingLeft: '58px',
-                    }}>
+                    <Link
+                      href={`/orders/${order.id}`}
+                      style={{
+                        fontSize: '12px', color: 'var(--color-text-muted)',
+                        margin: 0, paddingLeft: '58px',
+                        textDecoration: 'none',
+                      }}
+                    >
                       +{remainingCount} produk lainnya
-                    </p>
+                    </Link>
                   )}
                 </div>
 
                 {/* Footer: Date, courier, total */}
-                <div style={{
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  paddingTop: '10px',
-                  borderTop: '1px solid var(--color-border-light)',
-                }}>
+                <Link
+                  href={`/orders/${order.id}`}
+                  style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    paddingTop: '10px',
+                    borderTop: '1px solid var(--color-border-light)',
+                    textDecoration: 'none',
+                    color: 'inherit',
+                  }}
+                >
                   <div>
                     <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', display: 'block' }}>
                       {formatDate(order.created_at)}
@@ -271,8 +345,8 @@ export default async function OrdersPage() {
                   <span style={{ fontWeight: 700, fontSize: '15px' }}>
                     {formatRupiah(order.total)}
                   </span>
-                </div>
-              </Link>
+                </Link>
+              </div>
             )
           })}
         </div>

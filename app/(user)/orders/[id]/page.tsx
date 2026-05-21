@@ -6,7 +6,7 @@ import OrderTimeline from '@/components/order/OrderTimeline'
 import TrackingPanel from '@/components/order/TrackingPanel'
 import ReturnOrderButton from '@/components/order/ReturnOrderButton'
 import Link from 'next/link'
-import { ArrowLeft, Package, MapPin, CreditCard, Droplets, FileText, XCircle, Clock, Wallet, ShoppingBag } from 'lucide-react'
+import { ArrowLeft, Package, MapPin, CreditCard, Droplets, FileText, XCircle, Clock, Wallet, ShoppingBag, Check } from 'lucide-react'
 import CancelOrderButton from '@/components/order/CancelOrderButton'
 import type { Metadata } from 'next'
 
@@ -26,12 +26,20 @@ export default async function OrderDetailPage({ params }: Props) {
 
   const { data: order } = await supabase
     .from('orders')
-    .select('*, items:order_items(*, product:products(name, images:product_images(url, is_primary)))')
+    .select('*, items:order_items(*, product:products(name, slug, images:product_images(url, is_primary)))')
     .eq('id', id)
     .eq('user_id', user.id)
     .single()
 
   if (!order) notFound()
+
+  // Get user reviews to check if the products have been reviewed
+  const { data: userReviews } = await supabase
+    .from('reviews')
+    .select('product_id')
+    .eq('user_id', user.id)
+
+  const reviewedProductIds = new Set((userReviews || []).map(r => r.product_id))
 
   // Get coupon info if applied
   const { data: orderCoupon } = await supabase
@@ -209,11 +217,13 @@ export default async function OrderDetailPage({ params }: Props) {
           <ShoppingBag size={16} /> Produk Dipesan ({order.items?.length || 0} item)
         </h3>
         {order.items?.map((item: Record<string, unknown>, index: number) => {
-          const productData = item.product as { name: string; images: { url: string; is_primary: boolean }[] } | null
+          const productData = item.product as { name: string; slug: string; images: { url: string; is_primary: boolean }[] } | null
           const productImages = productData?.images || []
           const primaryImg = productImages.find(img => img.is_primary) || productImages[0]
           const displayImage = (item.product_image as string) || primaryImg?.url || null
           const displayName = (item.product_name as string) || productData?.name || 'Produk'
+          const isCompleted = order.status === 'delivered' || order.status === 'completed'
+          const hasReviewed = item.product_id && reviewedProductIds.has(item.product_id as string)
           return (
             <div key={item.id as string} style={{
               display: 'flex',
@@ -271,6 +281,52 @@ export default async function OrderDetailPage({ params }: Props) {
                 <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', margin: '0 0 2px 0' }}>
                   {item.quantity as number} × {formatRupiah(item.price as number)}
                 </p>
+
+                {isCompleted && productData?.slug && (
+                  <div style={{ marginTop: '8px' }}>
+                    {hasReviewed ? (
+                      <span
+                        style={{
+                          padding: '6px 12px',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          borderRadius: '8px',
+                          background: 'rgba(16, 185, 129, 0.08)',
+                          color: '#10b981',
+                          border: '1px solid rgba(16, 185, 129, 0.15)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                      >
+                        <Check size={12} strokeWidth={3} /> Sudah Diulas
+                      </span>
+                    ) : (
+                      <Link
+                        href={`/products/${productData.slug}#reviews`}
+                        className="btn"
+                        style={{
+                          padding: '6px 12px',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          borderRadius: '8px',
+                          background: '#10b981',
+                          color: '#ffffff',
+                          border: 'none',
+                          textDecoration: 'none',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          boxShadow: '0 2px 4px rgba(16, 185, 129, 0.2)',
+                          transition: 'all 0.2s ease',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Beri Ulasan
+                      </Link>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Subtotal */}

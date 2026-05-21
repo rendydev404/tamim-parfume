@@ -72,13 +72,15 @@ export default function ProductDetailClient({ product, variants }: Props) {
       )}
 
       {/* Stock */}
-      <div style={{ marginBottom: '20px' }}>
-        {displayStock > 0 ? (
-          <span className="badge badge-success">Stok: {displayStock}</span>
-        ) : (
-          <span className="badge badge-error">Stok Habis</span>
-        )}
-      </div>
+      {(!hasVariants || selectedVariant) && (
+        <div style={{ marginBottom: '20px' }}>
+          {displayStock > 0 ? (
+            <span className="badge badge-success">Stok: {displayStock}</span>
+          ) : (
+            <span className="badge badge-error">Stok Habis</span>
+          )}
+        </div>
+      )}
 
       {/* Short description */}
       {product.short_description && (

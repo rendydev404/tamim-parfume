@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Star, Loader2, MessageSquare } from 'lucide-react'
+import { Star, Loader2, MessageSquare, Camera } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 interface Review {
@@ -10,6 +10,7 @@ interface Review {
   rating: number
   comment: string
   created_at: string
+  images?: string[] // Decoded base64 images
   user: {
     full_name: string
     avatar_url: string | null
@@ -32,10 +33,29 @@ export default function ProductReviews({ productId, productName }: Props) {
   const [hoverRating, setHoverRating] = useState(0)
   const [comment, setComment] = useState('')
 
+  // New premium states
+  const [uploadedImages, setUploadedImages] = useState<string[]>([])
+  const [uploading, setUploading] = useState(false)
+  const [activeFilter, setActiveFilter] = useState<string>('all')
+  const [lightboxImages, setLightboxImages] = useState<string[] | null>(null)
+  const [lightboxIndex, setLightboxIndex] = useState<number>(0)
+
   useEffect(() => {
     loadReviews()
     checkCanReview()
   }, [])
+
+  // Keyboard events for lightbox navigation & close
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!lightboxImages) return
+      if (e.key === 'Escape') closeLightbox()
+      if (e.key === 'ArrowLeft') prevLightboxImage()
+      if (e.key === 'ArrowRight') nextLightboxImage()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [lightboxImages])
 
   const loadReviews = async () => {
     const supabase = createClient()
@@ -59,13 +79,33 @@ export default function ProductReviews({ productId, productName }: Props) {
         (profiles || []).map(p => [p.id, { full_name: p.full_name, avatar_url: p.avatar_url }])
       )
 
-      setReviews(data.map(r => ({
-        id: r.id,
-        rating: r.rating,
-        comment: r.comment,
-        created_at: r.created_at,
-        user: profileMap.get(r.user_id) || null,
-      })))
+      setReviews(data.map(r => {
+        let text = r.comment
+        let images: string[] = []
+        try {
+          if (r.comment && r.comment.trim().startsWith('{')) {
+            const parsed = JSON.parse(r.comment)
+            if (parsed && typeof parsed === 'object') {
+              text = parsed.text || ''
+              images = parsed.images || []
+            }
+          }
+        } catch (e) {
+          // Backward compatibility
+          text = r.comment
+        }
+
+        return {
+          id: r.id,
+          rating: r.rating,
+          comment: text,
+          created_at: r.created_at,
+          images,
+          user: profileMap.get(r.user_id) || null,
+        }
+      }))
+    } else {
+      setReviews([])
     }
     setLoading(false)
   }
@@ -93,13 +133,97 @@ export default function ProductReviews({ productId, productName }: Props) {
       .eq('product_id', productId)
 
     if (orderItems) {
-      const hasDelivered = orderItems.some((item: Record<string, unknown>) => {
-        const order = item.order as Record<string, unknown>
+      const hasDelivered = orderItems.some((item: Record<string, any>) => {
+        const order = item.order as Record<string, any>
         return order.user_id === user.id && 
                (order.status === 'delivered' || order.status === 'completed')
       })
       setCanReview(hasDelivered)
     }
+  }
+
+  // Client-side Image Compressor
+  const compressAndEncodeImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        const img = new Image()
+        img.onload = () => {
+          const canvas = document.createElement('canvas')
+          let width = img.width
+          let height = img.height
+          
+          // Max constraint 800px
+          const MAX_SIZE = 800
+          if (width > height) {
+            if (width > MAX_SIZE) {
+              height = Math.round((height * MAX_SIZE) / width)
+              width = MAX_SIZE
+            }
+          } else {
+            if (height > MAX_SIZE) {
+              width = Math.round((width * MAX_SIZE) / height)
+              height = MAX_SIZE
+            }
+          }
+          
+          canvas.width = width
+          canvas.height = height
+          
+          const ctx = canvas.getContext('2d')
+          if (!ctx) {
+            resolve(e.target?.result as string)
+            return
+          }
+          
+          ctx.drawImage(img, 0, 0, width, height)
+          
+          // Compress to high-quality JPEG (0.75) to minimize database payload size
+          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.75)
+          resolve(compressedBase64)
+        }
+        img.onerror = () => reject(new Error('Gagal memuat gambar'))
+        img.src = e.target?.result as string
+      }
+      reader.onerror = () => reject(new Error('Gagal membaca file'))
+      reader.readAsDataURL(file)
+    })
+  }
+
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+    
+    const newImages = [...uploadedImages]
+    if (newImages.length + files.length > 3) {
+      toast.error('Maksimal hanya dapat mengunggah 3 foto')
+      return
+    }
+    
+    setUploading(true)
+    const toastId = toast.loading('Mengompresi dan memproses foto...')
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        // Check initial size (max 10MB limit before processing)
+        if (file.size > 10 * 1024 * 1024) {
+          toast.error(`File ${file.name} terlalu besar (maks 10MB)`)
+          continue
+        }
+        const compressed = await compressAndEncodeImage(file)
+        newImages.push(compressed)
+      }
+      setUploadedImages(newImages)
+      toast.success('Foto berhasil diproses!', { id: toastId })
+    } catch (err) {
+      toast.error('Gagal memproses gambar', { id: toastId })
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const removeUploadedImage = (index: number) => {
+    setUploadedImages(prev => prev.filter((_, i) => i !== index))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -109,27 +233,75 @@ export default function ProductReviews({ productId, productName }: Props) {
 
     try {
       const supabase = createClient()
+      
+      // Double check if user has already reviewed this product to be absolutely certain
+      const { data: existing } = await supabase
+        .from('reviews')
+        .select('id')
+        .eq('product_id', productId)
+        .eq('user_id', userId)
+        .maybeSingle()
+
+      if (existing) {
+        toast.error('Anda sudah memberikan ulasan untuk produk ini.')
+        setShowForm(false)
+        setComment('')
+        setUploadedImages([])
+        setCanReview(false)
+        return
+      }
+
+      // Zero-migration solution: save comment and images arrays serialized in JSON
+      const commentPayload = uploadedImages.length > 0
+        ? JSON.stringify({ text: comment.trim(), images: uploadedImages })
+        : comment.trim()
+
       const { error } = await supabase
         .from('reviews')
         .insert({
           product_id: productId,
           user_id: userId,
           rating,
-          comment: comment.trim(),
+          comment: commentPayload,
         })
 
       if (error) throw error
       toast.success('Ulasan berhasil dikirim!')
       setShowForm(false)
       setComment('')
+      setUploadedImages([])
       setCanReview(false)
       loadReviews()
-    } catch (error: unknown) {
-      const err = error as { message?: string }
-      toast.error(err.message || 'Gagal mengirim ulasan')
+    } catch (error: any) {
+      toast.error(error.message || 'Gagal mengirim ulasan')
     } finally {
       setSubmitting(false)
     }
+  }
+
+  // Lightbox controllers
+  const openLightbox = (images: string[], index: number) => {
+    setLightboxImages(images)
+    setLightboxIndex(index)
+    document.body.style.overflow = 'hidden' // Disable body scroll
+  }
+
+  const closeLightbox = () => {
+    setLightboxImages(null)
+    setLightboxIndex(0)
+    document.body.style.overflow = 'unset' // Re-enable body scroll
+  }
+
+  const prevLightboxImage = (e?: React.MouseEvent) => {
+    e?.stopPropagation()
+    if (!lightboxImages) return
+    setLightboxIndex(prev => (prev === 0 ? lightboxImages.length - 1 : prev - 1))
+  }
+
+  const nextLightboxImage = (e?: React.MouseEvent) => {
+    e?.stopPropagation()
+    if (!lightboxImages) return
+    setLightboxIndex(prev => (prev === lightboxImages.length - 1 ? 0 : prev + 1))
   }
 
   const avgRating = reviews.length > 0
@@ -156,8 +328,43 @@ export default function ProductReviews({ productId, productName }: Props) {
     return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
   }
 
+  // Filter reviews client-side
+  const filteredReviews = reviews.filter(r => {
+    if (activeFilter === 'all') return true
+    if (activeFilter === 'photo') return r.images && r.images.length > 0
+    return r.rating === parseInt(activeFilter)
+  })
+
   return (
     <div style={{ marginTop: '40px' }}>
+      {/* Scope specific styling */}
+      <style>{`
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        .review-photo-thumb {
+          position: relative;
+          transition: all var(--transition-fast) ease;
+        }
+        .review-photo-thumb:hover {
+          transform: scale(1.04);
+          filter: brightness(0.95);
+        }
+        .filter-chip {
+          padding: 8px 16px;
+          font-size: 13px;
+          font-weight: 600;
+          border-radius: 30px;
+          cursor: pointer;
+          transition: all var(--transition-fast) ease;
+          user-select: none;
+        }
+        .filter-chip:hover {
+          opacity: 0.9;
+        }
+      `}</style>
+
       <h3 style={{
         fontSize: '18px',
         fontWeight: 600,
@@ -174,7 +381,6 @@ export default function ProductReviews({ productId, productName }: Props) {
       {loading ? (
         <div style={{ textAlign: 'center', padding: '32px', color: 'var(--color-text-muted)' }}>
           <Loader2 size={24} style={{ animation: 'spin 1s linear infinite', margin: '0 auto' }} />
-          <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
         </div>
       ) : (
         <>
@@ -246,7 +452,7 @@ export default function ProductReviews({ productId, productName }: Props) {
             <button
               onClick={() => setShowForm(true)}
               className="btn btn-primary btn-sm"
-              style={{ marginBottom: '16px' }}
+              style={{ marginBottom: '16px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
             >
               <Star size={14} /> Tulis Ulasan
             </button>
@@ -307,8 +513,88 @@ export default function ProductReviews({ productId, productName }: Props) {
                   />
                 </div>
 
+                {/* Image Uploader */}
+                <div style={{ marginBottom: '20px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: 500, marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Camera size={16} /> Unggah Foto Parfum (Maks 3)
+                  </label>
+                  
+                  <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+                    {/* Thumbnail previews */}
+                    {uploadedImages.map((img, idx) => (
+                      <div
+                        key={idx}
+                        style={{
+                          position: 'relative',
+                          width: '80px',
+                          height: '80px',
+                          borderRadius: 'var(--radius-md)',
+                          overflow: 'hidden',
+                          border: '1.5px solid var(--color-border)',
+                          boxShadow: 'var(--shadow-sm)',
+                        }}
+                      >
+                        <img src={img} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        <button
+                          type="button"
+                          onClick={() => removeUploadedImage(idx)}
+                          style={{
+                            position: 'absolute',
+                            top: '4px',
+                            right: '4px',
+                            background: 'rgba(0, 0, 0, 0.6)',
+                            color: '#fff',
+                            border: 'none',
+                            borderRadius: '50%',
+                            width: '20px',
+                            height: '20px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            fontSize: '10px',
+                            fontWeight: 'bold',
+                          }}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                    
+                    {/* Upload button container */}
+                    {uploadedImages.length < 3 && (
+                      <label
+                        style={{
+                          width: '80px',
+                          height: '80px',
+                          borderRadius: 'var(--radius-md)',
+                          border: '1.5px dashed var(--color-border)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          background: 'var(--color-bg-secondary)',
+                          transition: 'all var(--transition-fast) ease',
+                        }}
+                      >
+                        <span style={{ fontSize: '20px', color: 'var(--color-text-muted)', fontWeight: 300 }}>+</span>
+                        <span style={{ fontSize: '10px', color: 'var(--color-text-muted)', marginTop: '4px' }}>Foto</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          onChange={handleImageChange}
+                          disabled={uploading}
+                          style={{ display: 'none' }}
+                        />
+                      </label>
+                    )}
+                  </div>
+                </div>
+
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  <button type="submit" className="btn btn-primary btn-sm" disabled={submitting}>
+                  <button type="submit" className="btn btn-primary btn-sm" disabled={submitting || uploading}>
                     {submitting ? (
                       <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Mengirim...</>
                     ) : (
@@ -317,7 +603,10 @@ export default function ProductReviews({ productId, productName }: Props) {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setShowForm(false)}
+                    onClick={() => {
+                      setShowForm(false)
+                      setUploadedImages([])
+                    }}
                     className="btn btn-secondary btn-sm"
                   >
                     Batal
@@ -327,10 +616,40 @@ export default function ProductReviews({ productId, productName }: Props) {
             </div>
           )}
 
+          {/* Interactive Filtering Chips */}
+          {reviews.length > 0 && (
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '20px' }}>
+              {[
+                { id: 'all', label: `Semua (${reviews.length})` },
+                { id: 'photo', label: `Dengan Foto (${reviews.filter(r => r.images && r.images.length > 0).length})` },
+                ...[5, 4, 3, 2, 1].map(star => ({
+                  id: star.toString(),
+                  label: `${star} Bintang (${reviews.filter(r => r.rating === star).length})`
+                }))
+              ].map(chip => {
+                const isActive = activeFilter === chip.id
+                return (
+                  <button
+                    key={chip.id}
+                    onClick={() => setActiveFilter(chip.id)}
+                    className="filter-chip"
+                    style={{
+                      border: isActive ? '1px solid var(--color-primary)' : '1px solid var(--color-border)',
+                      background: isActive ? 'var(--color-primary)' : 'var(--color-bg)',
+                      color: isActive ? 'var(--color-secondary)' : 'var(--color-text-secondary)',
+                    }}
+                  >
+                    {chip.label}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
           {/* Review List */}
-          {reviews.length > 0 ? (
+          {filteredReviews.length > 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {reviews.map((review) => (
+              {filteredReviews.map((review) => (
                 <div key={review.id} className="card" style={{ padding: '16px' }}>
                   <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
                     {/* Avatar */}
@@ -372,8 +691,22 @@ export default function ProductReviews({ productId, productName }: Props) {
                         alignItems: 'center',
                         marginBottom: '4px',
                       }}>
-                        <span style={{ fontSize: '13px', fontWeight: 600 }}>
+                        <span style={{ fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
                           {review.user?.full_name || 'Pengguna'}
+                          <span title="Pembelian Terverifikasi" style={{ display: 'inline-flex', alignItems: 'center' }}>
+                            <svg
+                              viewBox="0 0 24 24"
+                              width="14"
+                              height="14"
+                              style={{ color: '#16a34a', flexShrink: 0 }}
+                            >
+                              <title>Pembelian Terverifikasi</title>
+                              <path
+                                fill="currentColor"
+                                d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"
+                              />
+                            </svg>
+                          </span>
                         </span>
                         <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
                           {formatDate(review.created_at)}
@@ -381,15 +714,17 @@ export default function ProductReviews({ productId, productName }: Props) {
                       </div>
 
                       {/* Stars */}
-                      <div style={{ display: 'flex', gap: '2px', marginBottom: '6px' }}>
-                        {[1, 2, 3, 4, 5].map(s => (
-                          <Star
-                            key={s}
-                            size={13}
-                            fill={s <= review.rating ? '#f59e0b' : 'none'}
-                            color="#f59e0b"
-                          />
-                        ))}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                        <div style={{ display: 'flex', gap: '2px' }}>
+                          {[1, 2, 3, 4, 5].map(s => (
+                            <Star
+                              key={s}
+                              size={13}
+                              fill={s <= review.rating ? '#f59e0b' : 'none'}
+                              color="#f59e0b"
+                            />
+                          ))}
+                        </div>
                       </div>
 
                       <p style={{
@@ -400,6 +735,38 @@ export default function ProductReviews({ productId, productName }: Props) {
                       }}>
                         {review.comment}
                       </p>
+
+                      {/* Premium Review Photo Grid */}
+                      {review.images && review.images.length > 0 && (
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '12px' }}>
+                          {review.images.map((img, imgIdx) => (
+                            <div
+                              key={imgIdx}
+                              onClick={() => openLightbox(review.images!, imgIdx)}
+                              className="review-photo-thumb"
+                              style={{
+                                width: '72px',
+                                height: '72px',
+                                borderRadius: 'var(--radius-md)',
+                                overflow: 'hidden',
+                                cursor: 'zoom-in',
+                                border: '1px solid var(--color-border-light)',
+                                boxShadow: 'var(--shadow-sm)'
+                              }}
+                            >
+                              <img
+                                src={img}
+                                alt={`Foto ulasan ${imgIdx + 1}`}
+                                style={{
+                                  width: '100%',
+                                  height: '100%',
+                                  objectFit: 'cover',
+                                }}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -413,10 +780,145 @@ export default function ProductReviews({ productId, productName }: Props) {
               fontSize: '14px',
             }}>
               <MessageSquare size={32} style={{ margin: '0 auto 8px', opacity: 0.3 }} />
-              <p>Belum ada ulasan untuk produk ini</p>
+              <p>Tidak ada ulasan yang sesuai dengan filter saat ini</p>
             </div>
           )}
         </>
+      )}
+
+      {/* Lightbox Modal */}
+      {lightboxImages && lightboxImages.length > 0 && (
+        <div
+          onClick={closeLightbox}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            background: 'rgba(0, 0, 0, 0.92)',
+            backdropFilter: 'blur(10px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '24px',
+            animation: 'fadeIn 0.2s ease-out',
+          }}
+        >
+          {/* Close button */}
+          <button
+            onClick={closeLightbox}
+            style={{
+              position: 'absolute',
+              top: '24px',
+              right: '24px',
+              background: 'rgba(255, 255, 255, 0.1)',
+              border: 'none',
+              borderRadius: '50%',
+              width: '40px',
+              height: '40px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#fff',
+              cursor: 'pointer',
+              fontSize: '18px',
+              fontWeight: 300,
+              zIndex: 10001,
+            }}
+          >
+            ✕
+          </button>
+
+          {/* Left Navigation */}
+          {lightboxImages.length > 1 && (
+            <button
+              onClick={prevLightboxImage}
+              style={{
+                position: 'absolute',
+                left: '24px',
+                background: 'rgba(255, 255, 255, 0.1)',
+                border: 'none',
+                borderRadius: '50%',
+                width: '48px',
+                height: '48px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#fff',
+                cursor: 'pointer',
+                fontSize: '24px',
+                zIndex: 10000,
+              }}
+            >
+              ‹
+            </button>
+          )}
+
+          {/* Image Container */}
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'relative',
+              maxWidth: '90%',
+              maxHeight: '80vh',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+            }}
+          >
+            <img
+              src={lightboxImages[lightboxIndex]}
+              alt={`Foto ulasan besar ${lightboxIndex + 1}`}
+              style={{
+                maxWidth: '100%',
+                maxHeight: '75vh',
+                objectFit: 'contain',
+                borderRadius: 'var(--radius-lg)',
+                boxShadow: '0 25px 50px -12px rgba(0,0,0,0.6)',
+              }}
+            />
+            {/* Index Counter */}
+            <p style={{
+              color: '#fff',
+              fontSize: '13px',
+              fontWeight: 600,
+              marginTop: '16px',
+              background: 'rgba(0, 0, 0, 0.6)',
+              padding: '6px 14px',
+              borderRadius: '20px',
+              letterSpacing: '1px'
+            }}>
+              {lightboxIndex + 1} / {lightboxImages.length}
+            </p>
+          </div>
+
+          {/* Right Navigation */}
+          {lightboxImages.length > 1 && (
+            <button
+              onClick={nextLightboxImage}
+              style={{
+                position: 'absolute',
+                right: '24px',
+                background: 'rgba(255, 255, 255, 0.1)',
+                border: 'none',
+                borderRadius: '50%',
+                width: '48px',
+                height: '48px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#fff',
+                cursor: 'pointer',
+                fontSize: '24px',
+                zIndex: 10000,
+              }}
+            >
+              ›
+            </button>
+          )}
+        </div>
       )}
     </div>
   )

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { ShoppingBag, Minus, Plus, Check, Zap } from 'lucide-react'
 import { useCartStore } from '@/stores/cart-store'
@@ -30,6 +30,13 @@ export default function AddToCartButton({ product, selectedVariant, hasVariants 
   const effectivePrice = selectedVariant ? selectedVariant.price : product.price
   const effectiveStock = selectedVariant ? selectedVariant.stock : product.stock
   const effectiveWeight = selectedVariant ? selectedVariant.weight : product.weight
+
+  // Clamp quantity to effective stock when variant changes
+  useEffect(() => {
+    if (selectedVariant && quantity > selectedVariant.stock) {
+      setQuantity(Math.max(1, selectedVariant.stock))
+    }
+  }, [selectedVariant, quantity])
 
   const handleAdd = () => {
     if (hasVariants && !selectedVariant) {
@@ -70,7 +77,7 @@ export default function AddToCartButton({ product, selectedVariant, hasVariants 
     router.push(`/checkout?buy_now=${product.id}&qty=${quantity}${variantParam}`)
   }
 
-  if (effectiveStock <= 0 && !hasVariants) {
+  if (effectiveStock <= 0 && (!hasVariants || selectedVariant)) {
     return (
       <button className="btn btn-primary btn-full btn-lg" disabled>
         Stok Habis
