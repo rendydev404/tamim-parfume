@@ -39,7 +39,7 @@ export default function AboutPage() {
           <h2 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '12px' }}>Hubungi Kami</h2>
           <p style={{ fontSize: '14px', color: 'var(--color-text-secondary)', lineHeight: 1.8 }}>
             Punya pertanyaan atau butuh bantuan? Jangan ragu untuk menghubungi kami melalui fitur chat
-            yang tersedia di website atau kirim email ke <strong>cs@tamimparfume.com</strong>.
+            yang tersedia di website atau kirim email ke <strong>tamimparfume21@gmail.com</strong>.
           </p>
           <p style={{ fontSize: '14px', color: 'var(--color-text-secondary)', marginTop: '12px', lineHeight: 1.8 }}>
             Jam Operasional: Senin - Sabtu, 09:00 - 21:00 WIB

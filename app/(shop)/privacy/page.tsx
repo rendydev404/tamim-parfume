@@ -65,7 +65,7 @@ export default function PrivacyPage() {
 
           <h2>7. Kontak</h2>
           <p>
-            Untuk pertanyaan tentang kebijakan privasi ini, hubungi kami di <strong>cs@tamimparfume.com</strong>.
+            Untuk pertanyaan tentang kebijakan privasi ini, hubungi kami di <strong>tamimparfume21@gmail.com</strong>.
           </p>
         </div>
       </main>

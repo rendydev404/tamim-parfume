@@ -65,6 +65,7 @@ function CheckoutContent() {
   const [mounted, setMounted] = useState(false)
   const [step, setStep] = useState(1) // 1: address, 2: shipping, 3: payment
   const [loading, setLoading] = useState(false)
+  const [checkoutSuccess, setCheckoutSuccess] = useState(false)
 
   // Buy now mode
   const buyNowId = searchParams.get('buy_now')
@@ -218,10 +219,10 @@ function CheckoutContent() {
   }, [])
 
   useEffect(() => {
-    if (mounted && !isBuyNow && cartItems.length === 0) {
+    if (mounted && !isBuyNow && cartItems.length === 0 && !checkoutSuccess) {
       router.push('/cart')
     }
-  }, [mounted, cartItems.length, router, isBuyNow])
+  }, [mounted, cartItems.length, router, isBuyNow, checkoutSuccess])
 
   const loadBuyNowProduct = async () => {
     try {
@@ -627,7 +628,10 @@ function CheckoutContent() {
         // Payment gateway might not be configured, continue anyway
       }
 
-      if (!isBuyNow) clearCart()
+      if (!isBuyNow) {
+        setCheckoutSuccess(true)
+        clearCart()
+      }
       toast.success('Pesanan berhasil dibuat!')
 
       // Redirect to custom payment page if reference is available

@@ -34,7 +34,7 @@ const faqs = [
   },
   {
     q: 'Bagaimana cara menghubungi customer service?',
-    a: 'Anda bisa menghubungi kami melalui fitur chat yang tersedia di website (klik ikon chat di pojok kanan bawah) atau email ke cs@tamimparfume.com. Jam operasional: Senin - Sabtu, 09:00 - 21:00 WIB.',
+    a: 'Anda bisa menghubungi kami melalui fitur chat yang tersedia di website (klik ikon chat di pojok kanan bawah) atau email ke tamimparfume21@gmail.com. Jam operasional: Senin - Sabtu, 09:00 - 21:00 WIB.',
   },
 ]
 

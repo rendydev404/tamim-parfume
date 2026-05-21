@@ -31,7 +31,7 @@ export default function ReturnPolicyPage() {
 
           <h2>Proses Pengembalian</h2>
           <ol>
-            <li><strong>Hubungi kami</strong> melalui chat atau email cs@tamimparfume.com dengan menyertakan nomor pesanan dan bukti foto/video.</li>
+            <li><strong>Hubungi kami</strong> melalui chat atau email tamimparfume21@gmail.com dengan menyertakan nomor pesanan dan bukti foto/video.</li>
             <li><strong>Verifikasi</strong> — Tim kami akan memverifikasi pengajuan dalam 1-2 hari kerja.</li>
             <li><strong>Kirim kembali</strong> — Jika disetujui, kirim produk kembali menggunakan kurir yang ditentukan.</li>
             <li><strong>Refund/Penggantian</strong> — Setelah produk diterima dan dicek, refund atau produk pengganti akan diproses dalam 3-5 hari kerja.</li>

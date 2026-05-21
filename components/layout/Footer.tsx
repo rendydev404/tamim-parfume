@@ -31,10 +31,10 @@ export default function Footer() {
           <div>
             <h4 className="footer__title">Hubungi Kami</h4>
             <p className="footer__link" style={{ cursor: 'default', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Mail size={14} /> cs@tamimparfume.com
+              <Mail size={14} /> tamimparfume21@gmail.com
             </p>
             <p className="footer__link" style={{ cursor: 'default', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Phone size={14} /> +62 812-3456-7890
+              <Phone size={14} /> +62 858-8549-7377
             </p>
             <p className="footer__link" style={{ cursor: 'default', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <MapPin size={14} /> Bogor, Indonesia
