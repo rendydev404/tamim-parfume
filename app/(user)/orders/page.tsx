@@ -137,10 +137,10 @@ export default async function OrdersPage() {
 
   const { data: userReviews } = await supabase
     .from('reviews')
-    .select('product_id')
+    .select('order_id, product_id')
     .eq('user_id', user.id)
 
-  const reviewedProductIds = new Set((userReviews || []).map(r => r.product_id))
+  const reviewedKeys = new Set((userReviews || []).map(r => `${r.order_id}_${r.product_id}`))
 
   return (
     <div className="container" style={{ paddingTop: '24px', paddingBottom: '40px' }}>
@@ -206,7 +206,7 @@ export default async function OrdersPage() {
                     const displayImage = item.product_image || primaryImg?.url || null
                     const displayName = item.product_name || item.product?.name || 'Produk'
                     const isCompleted = order.status === 'delivered' || order.status === 'completed'
-                    const hasReviewed = item.product_id && reviewedProductIds.has(item.product_id)
+                    const hasReviewed = item.product_id && reviewedKeys.has(`${order.id}_${item.product_id}`)
 
                     return (
                       <div key={item.id} style={{
@@ -281,7 +281,7 @@ export default async function OrdersPage() {
                             </span>
                           ) : (
                             <Link
-                              href={`/products/${item.product.slug}#reviews`}
+                              href={`/products/${item.product.slug}?order_id=${order.id}#reviews`}
                               className="btn"
                               style={{
                                 padding: '6px 12px',

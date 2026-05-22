@@ -128,16 +128,24 @@ function CheckoutContent() {
   const [destinationId, setDestinationId] = useState<number | null>(null)
 
   // Origin destination ID from RajaOngkir (Tegal Gundil, Bogor Utara, Kota Bogor)
-  // Jl. Achmad Adnawijaya No.D2 No 5, RT.02/RW.11, Tegal Gundil, Kec. Bogor Utara, Kota Bogor, Jawa Barat 16152
+  // Jl. Achmad Adnawijaya No.5, RT.05/RW.11, Tegal Gundil, Kec. Bogor Utara, Kota Bogor, Jawa Barat 16152
   const ORIGIN_DESTINATION_ID = 8174
   const ORIGIN_VILLAGE_CODE = '76116' // Origin village code for fallback api.co.id
+  
+  const [storeSettings, setStoreSettings] = useState<{
+    rajaongkir_id: number
+    village_code: string
+    address: string
+    district: string
+    city: string
+  } | null>(null)
 
   // Payment
   const [selectedPayment, setSelectedPayment] = useState('')
   const [appliedCoupon, setAppliedCoupon] = useState<CouponData | null>(null)
   const [orderNotes, setOrderNotes] = useState('')
 
-  // Dynamic payment channels from Tripay
+  // Dynamic payment channels from Midtrans
   interface PaymentChannel {
     group: string
     code: string
@@ -189,13 +197,21 @@ function CheckoutContent() {
     setMounted(true)
     loadSavedAddresses()
     if (buyNowId) loadBuyNowProduct()
+
+    // Load store settings dynamically
+    fetch('/api/store-settings')
+      .then(r => r.json())
+      .then(json => {
+        if (json.data) setStoreSettings(json.data)
+      })
+      .catch(() => {})
     // Load provinces for address form (api.co.id for district/village)
     fetch('/api/regional?type=provinces')
       .then(r => r.json())
       .then(json => setProvinces(json.data || []))
       .catch(() => {})
 
-    // Load payment channels from Tripay
+    // Load payment channels from Midtrans
     fetch('/api/payment/channels')
       .then(r => r.json())
       .then(json => {
@@ -406,12 +422,15 @@ function CheckoutContent() {
       : getTotalPrice()
 
     const params = new URLSearchParams({ weight: (totalWeight || 1000).toString(), item_value: itemValue.toString() })
+    const originId = storeSettings?.rajaongkir_id || ORIGIN_DESTINATION_ID
+    const originVillage = storeSettings?.village_code || ORIGIN_VILLAGE_CODE
+
     if (destId) {
-      params.set('origin', ORIGIN_DESTINATION_ID.toString())
+      params.set('origin', originId.toString())
       params.set('destination', destId.toString())
     }
     if (villageCode) {
-      params.set('origin_village', ORIGIN_VILLAGE_CODE)
+      params.set('origin_village', originVillage)
       params.set('destination_village', villageCode)
     }
     if (provinceName) {
@@ -513,7 +532,7 @@ function CheckoutContent() {
           shipping_postal_code: activeAddr.postal_code,
           shipping_courier: selectedShipping.courier,
           shipping_service: selectedShipping.service,
-          shipping_tracking: trackingNumber,
+          shipping_tracking: null,
           payment_method: selectedPayment,
           notes: orderNotes.trim() || null,
         })
@@ -649,7 +668,7 @@ function CheckoutContent() {
   }
 
   // Shipping options are now loaded from API (see shippingOptions state)
-  // Payment channels are loaded dynamically from Tripay (see paymentChannels state)
+  // Payment channels are loaded dynamically from Midtrans (see paymentChannels state)
 
   return (
     <>

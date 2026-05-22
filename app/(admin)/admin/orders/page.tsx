@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { formatRupiah, formatDate } from '@/lib/utils'
 import { ORDER_STATUS } from '@/lib/constants'
@@ -10,6 +11,7 @@ import toast from 'react-hot-toast'
 import PrintLabel from '@/components/order/PrintLabel'
 
 export default function AdminOrdersPage() {
+  const router = useRouter()
   const [orders, setOrders] = useState<Record<string, unknown>[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
@@ -160,6 +162,14 @@ export default function AdminOrdersPage() {
 
   return (
     <div>
+      <style>{`
+        .admin-order-row {
+          transition: background-color 0.15s ease;
+        }
+        .admin-order-row:hover {
+          background-color: rgba(255, 255, 255, 0.02) !important;
+        }
+      `}</style>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', gap: '16px', flexWrap: 'wrap' }}>
         <h1 style={{ fontSize: '1.5rem' }}>Kelola Pesanan</h1>
         <div style={{ position: 'relative', minWidth: '240px', flex: '0 1 320px' }}>
@@ -285,8 +295,31 @@ export default function AdminOrdersPage() {
             {filteredOrders.map((order) => {
               const status = ORDER_STATUS[order.status as string] || { label: order.status, color: '#999' }
               return (
-                <tr key={order.id as string}>
-                  <td style={{ fontWeight: 600, fontSize: '13px' }}>#{order.order_number as string}</td>
+                <tr 
+                  key={order.id as string}
+                  onClick={() => router.push(`/admin/orders/${order.id}`)}
+                  style={{ cursor: 'pointer' }}
+                  className="admin-order-row"
+                >
+                  <td style={{ fontWeight: 600, fontSize: '13px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      {order.seen_by_admin === false && (
+                        <span 
+                          style={{
+                            width: '8px',
+                            height: '8px',
+                            borderRadius: '50%',
+                            backgroundColor: '#3b82f6',
+                            boxShadow: '0 0 8px #3b82f6',
+                            display: 'inline-block',
+                            flexShrink: 0
+                          }}
+                          title="Pesanan Baru"
+                        />
+                      )}
+                      <span>#{order.order_number as string}</span>
+                    </div>
+                  </td>
                   <td>
                     {(() => {
                       const items = (order as Record<string, any>).items || []
@@ -361,7 +394,10 @@ export default function AdminOrdersPage() {
                     {formatDate(order.created_at as string)}
                   </td>
                   <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' }}>
+                    <div 
+                      style={{ display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <select
                         className="input"
                         style={{ padding: '6px 28px 6px 8px', fontSize: '12px', minWidth: '130px' }}

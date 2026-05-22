@@ -251,14 +251,34 @@ export default function TrackingPanel({ orderId }: { orderId: string }) {
               {data.tracking_number}
             </span>
           </div>
-          <button
-            onClick={handleCopy}
-            className="tracking-header__copy"
-            title="Salin nomor resi"
-          >
-            {copied ? <Check size={14} /> : <Copy size={14} />}
-            {copied ? 'Tersalin' : 'Salin'}
-          </button>
+          <div style={{ display: 'flex', gap: '6px' }}>
+            <button
+              onClick={handleCopy}
+              className="tracking-header__copy"
+              title="Salin nomor resi"
+            >
+              {copied ? <Check size={14} /> : <Copy size={14} />}
+              {copied ? 'Tersalin' : 'Salin'}
+            </button>
+            <a
+              href={`https://cekresi.com/?noresi=${data.tracking_number}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="tracking-header__copy"
+              style={{
+                textDecoration: 'none',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                background: 'var(--color-primary)',
+                color: '#ffffff',
+                border: 'none'
+              }}
+              title="Lacak paket di CekResi"
+            >
+              Lacak ↗
+            </a>
+          </div>
         </div>
 
         {/* Route summary */}

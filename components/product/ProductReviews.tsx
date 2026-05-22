@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Star, Loader2, MessageSquare, Camera } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -23,10 +24,14 @@ interface Props {
 }
 
 export default function ProductReviews({ productId, productName }: Props) {
+  const searchParams = useSearchParams()
+  const orderIdFromUrl = searchParams.get('order_id')
+
   const [reviews, setReviews] = useState<Review[]>([])
   const [loading, setLoading] = useState(true)
   const [canReview, setCanReview] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
+  const [reviewOrderId, setReviewOrderId] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [rating, setRating] = useState(5)
@@ -116,29 +121,65 @@ export default function ProductReviews({ productId, productName }: Props) {
     if (!user) return
     setUserId(user.id)
 
-    // Check if user has already reviewed this product
-    const { data: existingReview } = await supabase
-      .from('reviews')
-      .select('id')
-      .eq('product_id', productId)
-      .eq('user_id', user.id)
-      .maybeSingle()
+    if (orderIdFromUrl) {
+      // Specific order_id provided via URL (from "Beri Ulasan" button)
+      // Check if this specific order+product combo already has a review
+      const { data: existingReview } = await supabase
+        .from('reviews')
+        .select('id')
+        .eq('order_id', orderIdFromUrl)
+        .eq('product_id', productId)
+        .maybeSingle()
 
-    if (existingReview) return // Already reviewed
+      if (existingReview) return // Already reviewed for this order
 
-    // Check if user has a completed/delivered order with this product
-    const { data: orderItems } = await supabase
-      .from('order_items')
-      .select('id, order:orders!inner(user_id, status)')
-      .eq('product_id', productId)
+      // Verify this order belongs to the user and is completed
+      const { data: orderData } = await supabase
+        .from('orders')
+        .select('id, status')
+        .eq('id', orderIdFromUrl)
+        .eq('user_id', user.id)
+        .in('status', ['delivered', 'completed'])
+        .maybeSingle()
 
-    if (orderItems) {
-      const hasDelivered = orderItems.some((item: Record<string, any>) => {
-        const order = item.order as Record<string, any>
-        return order.user_id === user.id && 
-               (order.status === 'delivered' || order.status === 'completed')
-      })
-      setCanReview(hasDelivered)
+      if (orderData) {
+        setReviewOrderId(orderIdFromUrl)
+        setCanReview(true)
+      }
+    } else {
+      // No order_id in URL — find the first eligible completed order for this product
+      // that hasn't been reviewed yet
+      const { data: orderItems } = await supabase
+        .from('order_items')
+        .select('order_id, order:orders!inner(id, user_id, status)')
+        .eq('product_id', productId)
+
+      if (orderItems) {
+        // Filter to only delivered/completed orders belonging to this user
+        const eligibleItems = orderItems.filter((item: Record<string, any>) => {
+          const order = item.order as Record<string, any>
+          return order.user_id === user.id &&
+                 (order.status === 'delivered' || order.status === 'completed')
+        })
+
+        // Check which of these orders already have reviews
+        for (const item of eligibleItems) {
+          const orderId = item.order_id as string
+          const { data: existingReview } = await supabase
+            .from('reviews')
+            .select('id')
+            .eq('order_id', orderId)
+            .eq('product_id', productId)
+            .maybeSingle()
+
+          if (!existingReview) {
+            // Found an order that hasn't been reviewed yet
+            setReviewOrderId(orderId)
+            setCanReview(true)
+            return
+          }
+        }
+      }
     }
   }
 
@@ -228,22 +269,22 @@ export default function ProductReviews({ productId, productName }: Props) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!userId || !comment.trim()) return
+    if (!userId || !comment.trim() || !reviewOrderId) return
     setSubmitting(true)
 
     try {
       const supabase = createClient()
       
-      // Double check if user has already reviewed this product to be absolutely certain
+      // Double check if user has already reviewed this order+product combo
       const { data: existing } = await supabase
         .from('reviews')
         .select('id')
+        .eq('order_id', reviewOrderId)
         .eq('product_id', productId)
-        .eq('user_id', userId)
         .maybeSingle()
 
       if (existing) {
-        toast.error('Anda sudah memberikan ulasan untuk produk ini.')
+        toast.error('Anda sudah memberikan ulasan untuk produk ini pada pesanan tersebut.')
         setShowForm(false)
         setComment('')
         setUploadedImages([])
@@ -261,6 +302,7 @@ export default function ProductReviews({ productId, productName }: Props) {
         .insert({
           product_id: productId,
           user_id: userId,
+          order_id: reviewOrderId,
           rating,
           comment: commentPayload,
         })

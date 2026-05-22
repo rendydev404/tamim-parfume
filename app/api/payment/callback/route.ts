@@ -1,16 +1,49 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { verifyCallbackSignature } from '@/lib/midtrans'
+import { autoBookBiteshipShipment } from '@/lib/biteship'
 
 export async function POST(request: Request) {
   try {
     const body = await request.json()
 
-    // Verify callback signature (simplified)
-    const { merchant_ref, status } = body
+    const {
+      order_id,
+      status_code,
+      gross_amount,
+      signature_key,
+      transaction_status,
+      fraud_status,
+    } = body
 
-    if (!merchant_ref || !status) {
-      return NextResponse.json({ success: false }, { status: 400 })
+    if (!order_id || !status_code || !gross_amount || !signature_key || !transaction_status) {
+      return NextResponse.json({ success: false, error: 'Invalid parameters' }, { status: 400 })
     }
+
+    // Verify signature key
+    const isSignatureValid = await verifyCallbackSignature(
+      order_id,
+      status_code,
+      gross_amount,
+      signature_key
+    )
+
+    if (!isSignatureValid) {
+      console.error('Invalid signature key for order:', order_id)
+      return NextResponse.json({ success: false, error: 'Invalid signature' }, { status: 401 })
+    }
+
+    // Map Midtrans status to generic status
+    let status = 'UNPAID'
+    if (transaction_status === 'settlement' || (transaction_status === 'capture' && fraud_status === 'accept')) {
+      status = 'PAID'
+    } else if (transaction_status === 'expire') {
+      status = 'EXPIRED'
+    } else if (transaction_status === 'cancel' || transaction_status === 'deny') {
+      status = 'FAILED'
+    }
+
+    const merchant_ref = order_id
 
     const supabase = await createClient()
 
@@ -56,6 +89,21 @@ export async function POST(request: Request) {
     if (error) {
       console.error('Callback update error:', error)
       return NextResponse.json({ success: false }, { status: 500 })
+    }
+
+    // Trigger automatic Biteship courier booking if status is now 'paid'
+    if (orderStatus === 'paid') {
+      try {
+        console.log(`[Midtrans Callback] 🚀 Automating courier booking for order: ${order.id}`)
+        const bookingRes = await autoBookBiteshipShipment(order.id, supabase)
+        if (bookingRes.success) {
+          console.log(`[Midtrans Callback] ✅ Courier booked successfully! Resi: ${bookingRes.trackingNumber}`)
+        } else {
+          console.error(`[Midtrans Callback] ❌ Courier booking failed: ${bookingRes.error}`)
+        }
+      } catch (bookErr) {
+        console.error('[Midtrans Callback] 💥 Error in autoBookBiteshipShipment:', bookErr)
+      }
     }
 
     // Restore stock on payment expiry/failure (cancellation)

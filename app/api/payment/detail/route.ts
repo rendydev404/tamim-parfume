@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getTransactionDetail } from '@/lib/tripay'
+import { getTransactionDetail } from '@/lib/midtrans'
 import { createClient } from '@/lib/supabase/server'
 
 export async function GET(request: NextRequest) {
@@ -16,14 +16,14 @@ export async function GET(request: NextRequest) {
 
     const detail = await getTransactionDetail(reference)
 
-    // Sync payment status to database when Tripay reports PAID/EXPIRED/FAILED
+    // Sync payment status to database when Midtrans reports PAID/EXPIRED/FAILED
     if (detail && detail.merchant_ref) {
-      const tripayStatus = detail.status
+      const paymentStatus = detail.status
       let orderStatus: string | null = null
 
-      if (tripayStatus === 'PAID') orderStatus = 'paid'
-      else if (tripayStatus === 'EXPIRED') orderStatus = 'cancelled'
-      else if (tripayStatus === 'FAILED') orderStatus = 'cancelled'
+      if (paymentStatus === 'PAID') orderStatus = 'paid'
+      else if (paymentStatus === 'EXPIRED') orderStatus = 'cancelled'
+      else if (paymentStatus === 'FAILED') orderStatus = 'cancelled'
 
       if (orderStatus) {
         const supabase = await createClient()
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
             .from('orders')
             .update({
               status: orderStatus,
-              paid_at: tripayStatus === 'PAID' ? new Date().toISOString() : null,
+              paid_at: paymentStatus === 'PAID' ? new Date().toISOString() : null,
             })
             .eq('id', order.id)
         }

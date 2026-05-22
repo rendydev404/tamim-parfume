@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { generateOTP, sendOTPEmail } from '@/lib/email'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -39,22 +40,80 @@ export async function POST(request: Request) {
 
     if (!userExists) {
       // Don't reveal if email exists or not for security
-      // But still return success to prevent email enumeration
       return NextResponse.json({
         message: 'Jika email terdaftar, kode OTP akan dikirim ke email Anda',
       })
     }
 
-    // Generate OTP using Supabase's built-in recovery flow
-    // This sends an email with a recovery token/OTP
-    const { error } = await supabaseAdmin.auth.resetPasswordForEmail(email, {
-      redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/auth/callback?redirect=/profile`,
-    })
+    // Rate limit: check if OTP was sent recently (within last 30 seconds)
+    const { data: recentOtp } = await supabaseAdmin
+      .from('password_reset_otps')
+      .select('created_at')
+      .eq('email', email.toLowerCase())
+      .eq('used', false)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
 
-    if (error) {
-      console.error('Reset password error:', error)
+    if (recentOtp) {
+      const lastSent = new Date(recentOtp.created_at).getTime()
+      const now = Date.now()
+      const diffSeconds = (now - lastSent) / 1000
+      if (diffSeconds < 30) {
+        return NextResponse.json(
+          { error: `Silakan tunggu ${Math.ceil(30 - diffSeconds)} detik sebelum mengirim ulang.` },
+          { status: 429 }
+        )
+      }
+    }
+
+    // Generate OTP code
+    const otpCode = generateOTP(4)
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000) // 10 minutes
+
+    // Invalidate all previous OTPs for this email
+    await supabaseAdmin
+      .from('password_reset_otps')
+      .update({ used: true })
+      .eq('email', email.toLowerCase())
+      .eq('used', false)
+
+    // Store new OTP in database
+    const { error: insertError } = await supabaseAdmin
+      .from('password_reset_otps')
+      .insert({
+        email: email.toLowerCase(),
+        otp_code: otpCode,
+        expires_at: expiresAt.toISOString(),
+      })
+
+    if (insertError) {
+      console.error('Insert OTP error:', insertError)
       return NextResponse.json(
-        { error: 'Gagal mengirim kode OTP' },
+        { error: 'Gagal menyimpan kode OTP' },
+        { status: 500 }
+      )
+    }
+
+    // Send OTP email via Nodemailer
+    try {
+      await sendOTPEmail(email, otpCode)
+    } catch (emailError) {
+      console.error('Send email error:', emailError)
+      
+      // Hapus OTP yang baru disimpan agar tidak memicu limit 429 pada pengiriman berikutnya
+      try {
+        await supabaseAdmin
+          .from('password_reset_otps')
+          .delete()
+          .eq('email', email.toLowerCase())
+          .eq('otp_code', otpCode)
+      } catch (dbCleanupError) {
+        console.error('Database cleanup error:', dbCleanupError)
+      }
+
+      return NextResponse.json(
+        { error: 'Gagal mengirim email. Periksa konfigurasi SMTP.' },
         { status: 500 }
       )
     }

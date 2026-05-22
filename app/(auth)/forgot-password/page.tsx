@@ -12,12 +12,13 @@ export default function ForgotPasswordPage() {
   const router = useRouter()
   const [step, setStep] = useState<Step>('email')
   const [email, setEmail] = useState('')
-  const [otp, setOtp] = useState(['', '', '', '', '', '', '', ''])
+  const [otp, setOtp] = useState(['', '', '', ''])
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [countdown, setCountdown] = useState(0)
+  const [resetToken, setResetToken] = useState('')
   const otpRefs = useRef<(HTMLInputElement | null)[]>([])
 
   // Countdown timer for resend
@@ -65,14 +66,14 @@ export default function ForgotPasswordPage() {
   const handleOtpChange = (index: number, value: string) => {
     if (value.length > 1) {
       // Handle paste - distribute digits across inputs
-      const digits = value.replace(/\D/g, '').slice(0, 8)
+      const digits = value.replace(/\D/g, '').slice(0, 4)
       const newOtp = [...otp]
-      for (let i = 0; i < digits.length && index + i < 8; i++) {
+      for (let i = 0; i < digits.length && index + i < 4; i++) {
         newOtp[index + i] = digits[i]
       }
       setOtp(newOtp)
       // Focus the next empty input or the last filled one
-      const nextIndex = Math.min(index + digits.length, 7)
+      const nextIndex = Math.min(index + digits.length, 3)
       otpRefs.current[nextIndex]?.focus()
       return
     }
@@ -84,7 +85,7 @@ export default function ForgotPasswordPage() {
     setOtp(newOtp)
 
     // Auto-focus next input
-    if (value && index < 7) {
+    if (value && index < 3) {
       otpRefs.current[index + 1]?.focus()
     }
   }
@@ -100,26 +101,20 @@ export default function ForgotPasswordPage() {
 
   const handleOtpPaste = (e: React.ClipboardEvent) => {
     e.preventDefault()
-    const pastedData = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 8)
+    const pastedData = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 4)
     if (pastedData.length > 0) {
       const newOtp = [...otp]
-      for (let i = 0; i < pastedData.length && i < 8; i++) {
+      for (let i = 0; i < pastedData.length && i < 4; i++) {
         newOtp[i] = pastedData[i]
       }
       setOtp(newOtp)
-      const focusIndex = Math.min(pastedData.length, 7)
+      const focusIndex = Math.min(pastedData.length, 3)
       otpRefs.current[focusIndex]?.focus()
     }
   }
 
   const handleVerifyAndReset = async (e: React.FormEvent) => {
     e.preventDefault()
-
-    const otpCode = otp.join('')
-    if (otpCode.length !== 8) {
-      toast.error('Masukkan 8 digit kode OTP')
-      return
-    }
 
     if (newPassword !== confirmPassword) {
       toast.error('Konfirmasi password tidak cocok')
@@ -137,7 +132,7 @@ export default function ForgotPasswordPage() {
       const res = await fetch('/api/auth/reset-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, otp: otpCode, newPassword }),
+        body: JSON.stringify({ email, resetToken, newPassword }),
       })
 
       const data = await res.json()
@@ -166,13 +161,15 @@ export default function ForgotPasswordPage() {
         body: JSON.stringify({ email }),
       })
 
+      const data = await res.json()
+
       if (res.ok) {
         toast.success('Kode OTP baru telah dikirim')
         setCountdown(60)
-        setOtp(['', '', '', '', '', '', '', ''])
+        setOtp(['', '', '', ''])
         otpRefs.current[0]?.focus()
       } else {
-        toast.error('Gagal mengirim ulang kode OTP')
+        toast.error(data.error || 'Gagal mengirim ulang kode OTP')
       }
     } catch {
       toast.error('Terjadi kesalahan')
@@ -335,7 +332,7 @@ export default function ForgotPasswordPage() {
 
             {/* OTP Inputs */}
             <div style={{
-              display: 'flex', justifyContent: 'center', gap: '6px',
+              display: 'flex', justifyContent: 'center', gap: '12px',
             }} onPaste={handleOtpPaste}>
               {otp.map((digit, i) => (
                 <input
@@ -348,8 +345,8 @@ export default function ForgotPasswordPage() {
                   onChange={(e) => handleOtpChange(i, e.target.value)}
                   onKeyDown={(e) => handleOtpKeyDown(i, e)}
                   style={{
-                    width: '38px', height: '48px',
-                    textAlign: 'center', fontSize: '20px', fontWeight: 700,
+                    width: '54px', height: '56px',
+                    textAlign: 'center', fontSize: '24px', fontWeight: 700,
                     borderRadius: 'var(--radius-md)',
                     border: digit
                       ? '2px solid var(--color-primary)'
@@ -360,10 +357,11 @@ export default function ForgotPasswordPage() {
                     transition: 'all 0.2s ease',
                     fontFamily: 'inherit',
                     caretColor: 'var(--color-primary)',
+                    boxShadow: 'var(--shadow-sm)',
                   }}
                   onFocus={(e) => {
                     e.target.style.borderColor = 'var(--color-primary)'
-                    e.target.style.boxShadow = '0 0 0 3px rgba(var(--color-primary-rgb, 0,0,0), 0.1)'
+                    e.target.style.boxShadow = '0 0 0 3px rgba(var(--color-primary-rgb, 0,0,0), 0.15)'
                   }}
                   onBlur={(e) => {
                     e.target.style.borderColor = digit ? 'var(--color-primary)' : 'var(--color-border)'
@@ -376,14 +374,35 @@ export default function ForgotPasswordPage() {
             {/* Resend & Continue */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <button
-                onClick={() => {
-                  if (otpCode.length === 8) setStep('password')
-                  else toast.error('Masukkan 8 digit kode OTP')
+                onClick={async () => {
+                  if (otpCode.length !== 4) {
+                    toast.error('Masukkan 4 digit kode OTP')
+                    return
+                  }
+                  setLoading(true)
+                  try {
+                    const res = await fetch('/api/auth/verify-otp', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ email, otp: otpCode }),
+                    })
+                    const data = await res.json()
+                    if (!res.ok) {
+                      toast.error(data.error || 'Kode OTP tidak valid')
+                      return
+                    }
+                    setResetToken(data.resetToken)
+                    setStep('password')
+                  } catch {
+                    toast.error('Terjadi kesalahan saat verifikasi')
+                  } finally {
+                    setLoading(false)
+                  }
                 }}
                 className="btn btn-primary btn-full btn-lg"
-                disabled={otpCode.length !== 8}
+                disabled={otpCode.length !== 4 || loading}
               >
-                Verifikasi OTP
+                {loading ? <><Loader2 size={18} className="animate-spin" /> Memverifikasi...</> : 'Verifikasi OTP'}
               </button>
 
               <div style={{ textAlign: 'center' }}>
@@ -409,7 +428,7 @@ export default function ForgotPasswordPage() {
             </div>
 
             <button
-              onClick={() => { setStep('email'); setOtp(['', '', '', '', '', '', '', '']) }}
+              onClick={() => { setStep('email'); setOtp(['', '', '', '']) }}
               style={{
                 background: 'none', border: 'none', cursor: 'pointer',
                 fontSize: '12px', color: 'var(--color-text-muted)',

@@ -54,14 +54,14 @@ export const COURIERS = [
 // Store info (origin for shipping)
 export const STORE_INFO = {
   name: 'TAMIM PARFUME',
-  address: 'Jl. Dr. Semeru',
-  district: 'Bogor Tengah',
+  address: 'Jl. Achmad Adnawijaya No.5, RT.05/RW.11, Tegal Gundil',
+  district: 'Bogor Utara',
   city: 'Bogor',
   province: 'Jawa Barat',
-  postal_code: '16124',
-  phone: '-',
-  lat: -6.5944,
-  lng: 106.7892,
+  postal_code: '16152',
+  phone: '08129000123',
+  lat: -6.5822558,
+  lng: 106.813082,
 } as const
 
 // Image config

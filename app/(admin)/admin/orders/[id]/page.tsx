@@ -27,6 +27,13 @@ export default function AdminOrderDetailPage() {
   const [adminNotes, setAdminNotes] = useState('')
   const [showPrintLabel, setShowPrintLabel] = useState(false)
 
+  // Biteship Logistics States
+  const [courierCode, setCourierCode] = useState('jne')
+  const [courierService, setCourierService] = useState('reg')
+  const [trackingInfo, setTrackingInfo] = useState<any>(null)
+  const [loadingTracking, setLoadingTracking] = useState(false)
+  const [showManualShipping, setShowManualShipping] = useState(false)
+
   useEffect(() => {
     loadOrder()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -47,7 +54,45 @@ export default function AdminOrderDetailPage() {
       return
     }
 
+    // Mark as seen by admin in background if not already seen
+    if (orderData.seen_by_admin === false) {
+      supabase
+        .from('orders')
+        .update({ seen_by_admin: true })
+        .eq('id', orderId)
+        .then(({ error: updateErr }) => {
+          if (updateErr) console.error('Failed to mark order as seen:', updateErr)
+        })
+    }
+
     setOrder(orderData)
+    const rawCourier = (orderData.shipping_courier || 'jne').toLowerCase()
+    const rawService = (orderData.shipping_service || 'reg').toLowerCase()
+    
+    let mappedService = 'reg'
+    if (rawService.includes('yes') || rawService.includes('best') || rawService.includes('ons')) mappedService = 'yes'
+    else if (rawService.includes('eco') || rawService.includes('oke')) mappedService = 'eco'
+    
+    setCourierCode(rawCourier)
+    setCourierService(mappedService)
+
+    // Fetch tracking details if resi is set
+    if (orderData.shipping_tracking) {
+      setLoadingTracking(true)
+      try {
+        const tRes = await fetch(`/api/orders/${orderId}/tracking`)
+        if (tRes.ok) {
+          const tJson = await tRes.json()
+          if (tJson.success) {
+            setTrackingInfo(tJson.data)
+          }
+        }
+      } catch (tErr) {
+        console.error('Failed to load tracking details:', tErr)
+      } finally {
+        setLoadingTracking(false)
+      }
+    }
 
     const { data: itemsData } = await supabase
       .from('order_items')
@@ -76,6 +121,61 @@ export default function AdminOrderDetailPage() {
     setLoading(false)
   }
 
+  const handleBookShipment = async () => {
+    if (!order) return
+    if (!confirm(`Booking pickup kurir ${courierCode.toUpperCase()} (${courierService.toUpperCase()}) ke Biteship?`)) return
+    
+    setUpdating(true)
+    try {
+      const res = await fetch(`/api/admin/orders/${order.id}/shipment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          courierCode,
+          courierService
+        })
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error)
+      
+      toast.success(json.message || 'Berhasil melakukan booking kurir Biteship!')
+      loadOrder()
+    } catch (err: any) {
+      toast.error(err.message || 'Gagal booking kurir Biteship')
+    } finally {
+      setUpdating(false)
+    }
+  }
+
+  const handleBookShipmentAuto = async () => {
+    if (!order) return
+    const autoCourier = (order.shipping_courier || 'jne').toLowerCase()
+    const autoService = (order.shipping_service || 'reg').toLowerCase()
+    
+    if (!confirm(`Booking pickup kurir ${autoCourier.toUpperCase()} (${autoService.toUpperCase()}) otomatis ke Biteship?`)) return
+    
+    setUpdating(true)
+    try {
+      const res = await fetch(`/api/admin/orders/${order.id}/shipment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          courierCode: autoCourier,
+          courierService: autoService
+        })
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error)
+      
+      toast.success(json.message || 'Berhasil melakukan booking kurir Biteship secara otomatis!')
+      loadOrder()
+    } catch (err: any) {
+      toast.error(err.message || 'Gagal booking kurir Biteship')
+    } finally {
+      setUpdating(false)
+    }
+  }
+
   const updateReturnStatus = async (newStatus: string) => {
     if (!returnRequest) return
     setUpdating(true)
@@ -98,13 +198,45 @@ export default function AdminOrderDetailPage() {
 
   const updateStatus = async (newStatus: string) => {
     if (!order) return
+    
+    let trackingNumber = order.shipping_tracking || ''
+    const isBiteshipCourier = order.shipping_courier && 
+      order.shipping_courier.toLowerCase() !== 'local' && 
+      order.shipping_courier.toLowerCase() !== 'pickup'
+
+    if (newStatus === 'shipped' && !order.shipping_tracking) {
+      if (isBiteshipCourier) {
+        const choice = confirm('Pesanan menggunakan kurir Biteship. Apakah Anda ingin memesan kurir secara otomatis?\n\n- Klik [OK] untuk booking kurir Biteship otomatis.\n- Klik [Batal] jika ingin memasukkan nomor resi secara manual.')
+        if (!choice) {
+          const resiInput = prompt('Masukkan Nomor Resi / AWB Pihak Ketiga (Real) secara manual:', trackingNumber)
+          if (resiInput === null) return
+          trackingNumber = resiInput.trim()
+          if (!trackingNumber) {
+            toast.error('Nomor resi wajib diisi untuk status Dikirim!')
+            return
+          }
+        }
+      } else {
+        const resiInput = prompt('Masukkan Nomor Resi / AWB Pihak Ketiga (Real):', trackingNumber)
+        if (resiInput === null) return
+        trackingNumber = resiInput.trim()
+        if (!trackingNumber) {
+          toast.error('Nomor resi wajib diisi untuk status Dikirim!')
+          return
+        }
+      }
+    }
+
     setUpdating(true)
 
     try {
       const res = await fetch(`/api/admin/orders/${order.id}/status`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify({ 
+          status: newStatus,
+          tracking: trackingNumber || undefined
+        }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error)
@@ -502,6 +634,237 @@ export default function AdminOrderDetailPage() {
             )}
           </div>
         </div>
+      </div>
+
+      {/* Biteship Shipment Booking & Details Panel */}
+      <div className="card" style={{ padding: '20px', marginTop: '16px', borderLeft: '4px solid var(--color-primary)' }}>
+        <h3 style={{ fontSize: '15px', fontWeight: 700, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-primary)' }}>
+          <Truck size={18} /> Biteship Courier Logistics Aggregator
+        </h3>
+        
+        {order.shipping_tracking ? (
+          <div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+              <div>
+                <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', margin: '0 0 2px 0', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Kurir Booking Terpilih</p>
+                <p style={{ fontSize: '14px', fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span className="badge" style={{ background: 'var(--color-bg-secondary)', color: 'var(--color-primary)', border: '1px solid var(--color-border)', textTransform: 'uppercase', padding: '2px 8px' }}>
+                    {order.shipping_courier || 'JNE'}
+                  </span>
+                  <span style={{ textTransform: 'uppercase' }}>{order.shipping_service || 'REG'}</span>
+                </p>
+              </div>
+              <div>
+                <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', margin: '0 0 2px 0', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Nomor Resi / AWB</p>
+                <p style={{ fontSize: '14px', fontWeight: 700, fontFamily: 'monospace', margin: 0, color: 'var(--color-success)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  {order.shipping_tracking}
+                  {order.shipping_tracking.startsWith('TP-') && (
+                    <span style={{ fontSize: '10px', color: 'var(--color-warning-dark)', background: 'var(--color-warning)20', padding: '2px 6px', borderRadius: '4px', fontWeight: 500 }}>
+                      MOCK SANDBOX
+                    </span>
+                  )}
+                </p>
+              </div>
+            </div>
+
+            {/* Print and Webhook buttons */}
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '16px' }}>
+              {order.shipping_label ? (
+                <a
+                  href={order.shipping_label}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn btn-primary btn-sm"
+                  style={{ gap: '6px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}
+                >
+                  <Printer size={14} /> Cetak Label Pengiriman (Biteship PDF)
+                </a>
+              ) : (
+                <button
+                  onClick={() => setShowPrintLabel(true)}
+                  className="btn btn-primary btn-sm"
+                  style={{ gap: '6px', display: 'inline-flex', alignItems: 'center' }}
+                >
+                  <Printer size={14} /> Cetak Label Toko (Standard)
+                </button>
+              )}
+            </div>
+
+            {/* Tracking Log */}
+            <div style={{ background: 'var(--color-bg-secondary)', padding: '16px', borderRadius: '8px', border: '1px solid var(--color-border)' }}>
+              <p style={{ fontSize: '12px', fontWeight: 600, margin: '0 0 12px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Clock size={14} /> Status Perjalanan Real-Time
+              </p>
+              
+              {loadingTracking ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--color-text-muted)' }}>
+                  <Loader2 size={14} className="animate-spin" /> Menghubungi Biteship tracking...
+                </div>
+              ) : trackingInfo?.checkpoints && trackingInfo.checkpoints.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', position: 'relative', paddingLeft: '14px', borderLeft: '2px solid var(--color-border)' }}>
+                  {trackingInfo.checkpoints.slice().reverse().map((cp: any, idx: number) => (
+                    <div key={idx} style={{ position: 'relative' }}>
+                      {/* Bullet */}
+                      <div style={{
+                        position: 'absolute',
+                        left: '-21px',
+                        top: '4px',
+                        width: '12px',
+                        height: '12px',
+                        borderRadius: '50%',
+                        background: idx === 0 ? 'var(--color-success)' : 'var(--color-border)',
+                        border: '3px solid var(--color-bg-secondary)'
+                      }} />
+                      <p style={{ fontSize: '13px', fontWeight: idx === 0 ? 600 : 500, color: idx === 0 ? 'var(--color-text)' : 'var(--color-text-secondary)', margin: '0 0 2px 0' }}>
+                        {cp.description}
+                      </p>
+                      <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', margin: 0 }}>
+                        {cp.location} • {formatDateTime(cp.timestamp)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: 0 }}>
+                  Menunggu kurir melakukan pick up paket.
+                </p>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div>
+            <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', lineHeight: 1.6, marginBottom: '16px' }}>
+              Pesanan ini siap dikirimkan. Anda dapat memesan kurir secara langsung ke Biteship. Kurir akan datang menjemput barang sesuai alamat toko.
+            </p>
+
+            <div style={{
+              background: 'var(--color-bg-secondary)',
+              padding: '16px',
+              borderRadius: '8px',
+              border: '1px solid var(--color-border)',
+              marginBottom: '16px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '12px'
+            }}>
+              <div>
+                <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', margin: '0 0 4px 0', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Kurir Pilihan Pelanggan
+                </p>
+                <p style={{ fontSize: '15px', fontWeight: 700, margin: 0, color: 'var(--color-text)' }}>
+                  <span className="badge" style={{ background: 'var(--color-primary)15', color: 'var(--color-primary)', border: '1px solid var(--color-primary)30', textTransform: 'uppercase', padding: '2px 8px', marginRight: '8px' }}>
+                    {order.shipping_courier || 'JNE'}
+                  </span>
+                  <span style={{ textTransform: 'uppercase' }}>{order.shipping_service || 'REG'}</span>
+                </p>
+              </div>
+              <button
+                onClick={handleBookShipmentAuto}
+                disabled={updating || !['paid', 'processing'].includes(order.status)}
+                className="btn btn-primary"
+                style={{ gap: '6px', padding: '10px 18px' }}
+              >
+                {updating ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" /> Memproses...
+                  </>
+                ) : (
+                  <>
+                    <Truck size={16} /> Booking Kurir Otomatis (Sesuai Pilihan User)
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Toggle Manual Shipping */}
+            <div style={{ textAlign: 'right', marginBottom: showManualShipping ? '16px' : '0' }}>
+              <button
+                onClick={() => setShowManualShipping(!showManualShipping)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--color-primary)',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                  padding: 0
+                }}
+              >
+                {showManualShipping ? '← Sembunyikan Pengaturan Manual' : 'Atur Kurir / Layanan Secara Manual (Biteship) ⚙️'}
+              </button>
+            </div>
+
+            {/* Courier Selection Form (Hidden by default) */}
+            {showManualShipping && (
+              <div style={{ background: 'var(--color-bg-secondary)', padding: '16px', borderRadius: '8px', border: '1px dashed var(--color-border)', marginTop: '12px', marginBottom: '16px' }}>
+                <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '12px', fontWeight: 500 }}>
+                  Gunakan form di bawah ini jika Anda ingin mengubah kurir atau jenis layanan yang berbeda dari pilihan pelanggan:
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+                  <div>
+                    <label className="form-label" style={{ fontSize: '12px', fontWeight: 600 }}>Pilih Kurir Baru</label>
+                    <select
+                      className="input"
+                      style={{ padding: '8px 10px', fontSize: '13px' }}
+                      value={courierCode}
+                      onChange={(e) => setCourierCode(e.target.value)}
+                      disabled={updating}
+                    >
+                      <option value="jne">JNE (Jalur Nugraha Ekakurir)</option>
+                      <option value="jnt">J&T Express</option>
+                      <option value="sicepat">SiCepat Express</option>
+                      <option value="anteraja">Anteraja</option>
+                      <option value="pos">POS Indonesia</option>
+                      <option value="tiki">TIKI</option>
+                      <option value="ninja">Ninja Xpress</option>
+                      <option value="lion">Lion Parcel</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="form-label" style={{ fontSize: '12px', fontWeight: 600 }}>Layanan Kurir Baru</label>
+                    <select
+                      className="input"
+                      style={{ padding: '8px 10px', fontSize: '13px' }}
+                      value={courierService}
+                      onChange={(e) => setCourierService(e.target.value)}
+                      disabled={updating}
+                    >
+                      <option value="reg">REG (Regular Service)</option>
+                      <option value="yes">YES / BEST / ONS (Next Day)</option>
+                      <option value="eco">ECO (Economy Service)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleBookShipment}
+                  disabled={updating || !['paid', 'processing'].includes(order.status)}
+                  className="btn btn-secondary"
+                  style={{ width: '100%', gap: '6px', justifyContent: 'center', display: 'flex', alignItems: 'center', fontSize: '13px', padding: '10px' }}
+                >
+                  {updating ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" /> Menghubungi Biteship...
+                    </>
+                  ) : (
+                    <>
+                      <Truck size={16} /> Booking Kurir Manual (Gunakan Pilihan Di Atas)
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+
+            {!['paid', 'processing'].includes(order.status) && (
+              <p style={{ fontSize: '11px', color: 'var(--color-error)', marginTop: '6px', textAlign: 'center', margin: '6px 0 0 0' }}>
+                * Booking kurir hanya tersedia untuk pesanan dengan status "Dibayar" atau "Diproses".
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Shipping address */}

@@ -147,8 +147,8 @@ export interface ShippingOption {
   etd: string
 }
 
-// Tripay Types
-export interface TripayTransaction {
+// Payment Gateway Types
+export interface PaymentTransaction {
   reference: string
   merchant_ref: string
   payment_selection_type: string
@@ -167,15 +167,15 @@ export interface TripayTransaction {
   expired_time: number
   qr_string?: string
   qr_url?: string
-  instructions?: TripayInstruction[]
+  instructions?: PaymentInstruction[]
 }
 
-export interface TripayInstruction {
+export interface PaymentInstruction {
   title: string
   steps: string[]
 }
 
-export interface TripayChannel {
+export interface PaymentChannel {
   group: string
   code: string
   name: string

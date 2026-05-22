@@ -400,6 +400,61 @@ export default function PaymentPage() {
                 </div>
               )}
 
+              {/* Midtrans Simulation Card */}
+              {reference.startsWith('MOCK-') && (
+                <div style={{
+                  padding: '20px', borderRadius: '14px', marginBottom: '12px',
+                  border: '1.5px dashed #ca8a04', background: 'rgba(254, 249, 195, 0.1)',
+                  display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'center',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#ca8a04', fontSize: '13px', fontWeight: 700 }}>
+                    <ShieldCheck size={16} />
+                    <span>🔧 MODE SIMULASI MIDTRANS (DEVELOPER)</span>
+                  </div>
+                  <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)', textAlign: 'center', lineHeight: 1.5, margin: 0 }}>
+                    Anda sedang menggunakan kunci server placeholder Sandbox. Gunakan tombol di bawah ini untuk mensimulasikan status pembayaran berhasil secara instan.
+                  </p>
+                  <button
+                    onClick={async () => {
+                      try {
+                        const res = await fetch('/api/payment/callback', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            order_id: transaction.merchant_ref,
+                            status_code: '200',
+                            gross_amount: String(transaction.amount),
+                            signature_key: 'mock-key',
+                            transaction_status: 'settlement',
+                            fraud_status: 'accept'
+                          })
+                        })
+                        if (res.ok) {
+                          toast.success('Simulasi pembayaran sukses berhasil dikirim!')
+                          fetchTransaction() // Refresh payment state
+                        } else {
+                          toast.error('Gagal mengirim callback simulasi')
+                        }
+                      } catch {
+                        toast.error('Gagal memproses simulasi')
+                      }
+                    }}
+                    style={{
+                      ...styles.btnPrimary,
+                      marginTop: '4px',
+                      background: 'linear-gradient(135deg, #eab308, #ca8a04)',
+                      color: '#fff',
+                      fontSize: '13px',
+                      padding: '10px 20px',
+                      boxShadow: '0 4px 12px rgba(202,138,4,0.2)',
+                      border: 'none',
+                    }}
+                  >
+                    Simulasikan Pembayaran Sukses
+                  </button>
+                </div>
+              )}
+
               {/* Instructions accordion */}
               {transaction.instructions && transaction.instructions.length > 0 && (
                 <div style={styles.card}>

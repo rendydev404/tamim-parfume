@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { autoBookBiteshipShipment } from '@/lib/biteship'
 
 // PUT: Update order status with stock management
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -70,6 +71,30 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 
   if (updateError) {
     return NextResponse.json({ error: updateError.message }, { status: 500 })
+  }
+
+  // Trigger automatic Biteship courier booking if status is now manually set to 'paid', 'processing', or 'shipped' (only if no tracking is provided/exists yet)
+  const isBiteshipCourier = order.shipping_courier && 
+    order.shipping_courier.toLowerCase() !== 'local' && 
+    order.shipping_courier.toLowerCase() !== 'pickup'
+
+  if (
+    (newStatus === 'paid' || newStatus === 'processing' || newStatus === 'shipped') && 
+    !order.shipping_tracking && 
+    !tracking && 
+    isBiteshipCourier
+  ) {
+    try {
+      console.log(`[Admin Status Route] 🚀 Status updated to ${newStatus}. Triggering auto courier booking for order: ${id}`)
+      const bookingRes = await autoBookBiteshipShipment(id, supabase)
+      if (bookingRes.success) {
+        console.log(`[Admin Status Route] ✅ Courier booked successfully! Resi: ${bookingRes.trackingNumber}`)
+      } else {
+        console.error(`[Admin Status Route] ❌ Courier booking failed: ${bookingRes.error}`)
+      }
+    } catch (bookErr) {
+      console.error('[Admin Status Route] 💥 Error in autoBookBiteshipShipment:', bookErr)
+    }
   }
 
   // Get order items for stock management

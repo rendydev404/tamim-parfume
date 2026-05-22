@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { createHmac } from 'crypto'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -12,13 +13,48 @@ const supabaseAdmin = createClient(
   }
 )
 
+function verifyResetToken(token: string, email: string): { valid: boolean; userId?: string; error?: string } {
+  try {
+    const parts = token.split('.')
+    if (parts.length !== 2) return { valid: false, error: 'Token tidak valid' }
+
+    const [payloadBase64, signature] = parts
+
+    // Verify HMAC signature
+    const expectedSignature = createHmac('sha256', process.env.SUPABASE_SERVICE_ROLE_KEY!)
+      .update(payloadBase64)
+      .digest('base64url')
+
+    if (signature !== expectedSignature) {
+      return { valid: false, error: 'Token tidak valid' }
+    }
+
+    // Decode and parse payload
+    const payload = JSON.parse(Buffer.from(payloadBase64, 'base64url').toString())
+
+    // Check expiry
+    if (Date.now() > payload.expiresAt) {
+      return { valid: false, error: 'Token sudah kadaluarsa. Silakan ulangi proses dari awal.' }
+    }
+
+    // Check email match
+    if (payload.email.toLowerCase() !== email.toLowerCase()) {
+      return { valid: false, error: 'Token tidak valid untuk email ini' }
+    }
+
+    return { valid: true, userId: payload.userId }
+  } catch {
+    return { valid: false, error: 'Token tidak valid' }
+  }
+}
+
 export async function POST(request: Request) {
   try {
-    const { email, otp, newPassword } = await request.json()
+    const { email, resetToken, newPassword } = await request.json()
 
-    if (!email || !otp || !newPassword) {
+    if (!email || !resetToken || !newPassword) {
       return NextResponse.json(
-        { error: 'Email, kode OTP, dan password baru wajib diisi' },
+        { error: 'Email, token reset, dan password baru wajib diisi' },
         { status: 400 }
       )
     }
@@ -30,40 +66,18 @@ export async function POST(request: Request) {
       )
     }
 
-    // Verify OTP using Supabase's verifyOtp with type 'recovery'
-    const { data, error: verifyError } = await supabaseAdmin.auth.verifyOtp({
-      email,
-      token: otp,
-      type: 'recovery',
-    })
-
-    if (verifyError) {
-      console.error('OTP verification error:', verifyError)
-
-      // Provide user-friendly error messages
-      if (verifyError.message.includes('expired') || verifyError.message.includes('Token has expired')) {
-        return NextResponse.json(
-          { error: 'Kode OTP sudah kadaluarsa. Silakan minta kode baru.' },
-          { status: 400 }
-        )
-      }
-
+    // Verify the signed reset token
+    const tokenResult = verifyResetToken(resetToken, email)
+    if (!tokenResult.valid || !tokenResult.userId) {
       return NextResponse.json(
-        { error: 'Kode OTP tidak valid' },
+        { error: tokenResult.error || 'Token tidak valid' },
         { status: 400 }
       )
     }
 
-    if (!data.user) {
-      return NextResponse.json(
-        { error: 'Kode OTP tidak valid' },
-        { status: 400 }
-      )
-    }
-
-    // OTP verified successfully, now update the password using admin API
+    // Token verified successfully, now update the password using admin API
     const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
-      data.user.id,
+      tokenResult.userId,
       { password: newPassword }
     )
 

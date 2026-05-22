@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { Suspense } from 'react'
 import { notFound } from 'next/navigation'
 import { discountPercent } from '@/lib/utils'
 import ProductCard from '@/components/product/ProductCard'
@@ -231,7 +232,13 @@ export default async function ProductDetailPage({ params }: Props) {
       </div>
 
       {/* Product Reviews */}
-      <ProductReviews productId={product.id} productName={product.name} />
+      <Suspense fallback={
+        <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--color-text-muted)' }}>
+          Memuat ulasan...
+        </div>
+      }>
+        <ProductReviews productId={product.id} productName={product.name} />
+      </Suspense>
 
       {/* Related Products */}
       {related && related.length > 0 && (

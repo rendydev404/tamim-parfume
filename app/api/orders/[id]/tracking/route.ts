@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { STORE_INFO } from '@/lib/constants'
+import { trackBiteshipShipment } from '@/lib/biteship'
 
 // ============================================================
 // GEOCODING — Multi-strategy, village-level precision
@@ -220,10 +221,28 @@ export async function GET(
   }
 
   const origin = {
-    city: STORE_INFO.city,
-    district: STORE_INFO.district,
-    lat: STORE_INFO.lat,
-    lng: STORE_INFO.lng,
+    city: STORE_INFO.city as string,
+    district: STORE_INFO.district as string,
+    lat: STORE_INFO.lat as number,
+    lng: STORE_INFO.lng as number,
+  }
+
+  // Fetch dynamic store settings from database if available
+  try {
+    const { data: dbSettings } = await supabase
+      .from('store_settings')
+      .select('city, district, lat, lng')
+      .eq('id', 1)
+      .maybeSingle()
+
+    if (dbSettings) {
+      if (dbSettings.city) origin.city = dbSettings.city
+      if (dbSettings.district) origin.district = dbSettings.district
+      if (dbSettings.lat) origin.lat = Number(dbSettings.lat)
+      if (dbSettings.lng) origin.lng = Number(dbSettings.lng)
+    }
+  } catch (err: any) {
+    console.warn('[Tracking API] Failed to fetch dynamic store settings:', err.message)
   }
 
   // ======= KEY FIX =======
@@ -255,11 +274,82 @@ export async function GET(
     lng: destCoords.lng,
   }
 
-  // Generate simulated checkpoints based on order timestamps
-  const checkpoints = generateCheckpoints(order, origin, destination)
+  // Fetch Biteship Tracking or fall back to simulation
+  const trackingNumber = order.shipping_tracking
+  const isMockTracking = !trackingNumber || trackingNumber.startsWith('TP-') || trackingNumber.includes('MOCK')
+
+  let checkpoints = []
+  let progress = 0
+
+  if (!isMockTracking) {
+    try {
+      console.log(`[Tracking API] Fetching live Biteship status for: ${trackingNumber} / ${order.shipping_courier}`)
+      const trackData = await trackBiteshipShipment(trackingNumber, order.shipping_courier || 'jne')
+      console.log(`[Tracking API] Live data received:`, JSON.stringify(trackData, null, 2))
+      
+      const history = trackData.history || []
+      
+      // Map history to checkpoints
+      const mappedCPs = history.map((h: any) => {
+        let cpStatus = 'in_transit'
+        const note = (h.note || '').toLowerCase()
+        const statusStr = (h.status || '').toLowerCase()
+
+        if (statusStr === 'delivered' || note.includes('diterima') || note.includes('delivered')) {
+          cpStatus = 'delivered'
+        } else if (statusStr === 'picked_up' || note.includes('diambil') || note.includes('pickup') || note.includes('picked up')) {
+          cpStatus = 'pickup'
+        } else if (note.includes('sortir') || note.includes('sorting') || note.includes('gudang')) {
+          cpStatus = 'sort_origin'
+        }
+
+        return {
+          status: cpStatus,
+          description: h.note || 'Status pengiriman diperbarui',
+          location: h.location || order.shipping_city || 'Dalam Perjalanan',
+          timestamp: new Date(h.time || h.created_at).toISOString(),
+          completed: true
+        }
+      })
+
+      // Sort by time ascending
+      mappedCPs.sort((a: any, b: any) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+
+      // Always prefix with order confirmed CP
+      checkpoints = [
+        {
+          status: 'confirmed',
+          description: 'Pesanan dikonfirmasi & siap dikirim',
+          location: origin.city,
+          timestamp: new Date(order.created_at).toISOString(),
+          completed: true
+        },
+        ...mappedCPs
+      ]
+
+      // Set progress based on Biteship status
+      const bshipStatus = (trackData.status || '').toLowerCase()
+      if (bshipStatus === 'delivered') {
+        progress = 1
+      } else if (['picked_up', 'delivering', 'dropping_off', 'dropped_off'].includes(bshipStatus)) {
+        progress = 0.6
+      } else if (bshipStatus === 'allocated') {
+        progress = 0.2
+      } else {
+        progress = 0.1
+      }
+    } catch (err) {
+      console.error('[Tracking API] Biteship fetch failed, falling back to simulated geocoder:', err)
+      checkpoints = generateCheckpoints(order, origin, destination)
+      progress = calculateProgress(order)
+    }
+  } else {
+    // Simulated path
+    checkpoints = generateCheckpoints(order, origin, destination)
+    progress = calculateProgress(order)
+  }
 
   // Calculate current position along the route
-  const progress = calculateProgress(order)
   const currentPosition = {
     lat: origin.lat + (destination.lat - origin.lat) * progress,
     lng: origin.lng + (destination.lng - origin.lng) * progress,

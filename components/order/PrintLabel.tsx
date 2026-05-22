@@ -119,7 +119,7 @@ export default function PrintLabel({ order, items, onClose }: PrintLabelProps) {
             <p className="print-label__section-detail">
               {STORE_INFO.province} {STORE_INFO.postal_code}
             </p>
-            {STORE_INFO.phone !== '-' && (
+            {(STORE_INFO.phone as string) !== '-' && (
               <p className="print-label__section-detail">Tel: {STORE_INFO.phone}</p>
             )}
           </div>

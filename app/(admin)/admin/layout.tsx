@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   LayoutDashboard,
   Package,
@@ -19,8 +19,10 @@ import {
   RefreshCcw,
   ChevronsLeft,
   ChevronsRight,
+  Settings,
 } from 'lucide-react'
 import Header from '@/components/layout/Header'
+import { createClient } from '@/lib/supabase/client'
 
 const navItems = [
   { href: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
@@ -33,12 +35,92 @@ const navItems = [
   { href: '/admin/promos', icon: Megaphone, label: 'Promo' },
   { href: '/admin/hero-sequence', icon: Film, label: 'Hero Sequence' },
   { href: '/admin/reports', icon: BarChart3, label: 'Laporan' },
+  { href: '/admin/settings', icon: Settings, label: 'Pengaturan Toko' },
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
+
+  const [unreadOrders, setUnreadOrders] = useState(0)
+  const [unreadChats, setUnreadChats] = useState(0)
+  const [pendingReturns, setPendingReturns] = useState(0)
+
+  const fetchCounts = async () => {
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      // 1. Fetch unread orders (seen_by_admin = false)
+      const { count: ordersCount, error: ordersErr } = await supabase
+        .from('orders')
+        .select('*', { count: 'exact', head: true })
+        .eq('seen_by_admin', false)
+      
+      if (!ordersErr) {
+        setUnreadOrders(ordersCount || 0)
+      }
+
+      // 2. Fetch unread chats (is_read = false AND sender_id != admin_id)
+      const { count: chatsCount, error: chatsErr } = await supabase
+        .from('chat_messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_read', false)
+        .neq('sender_id', user.id)
+
+      if (!chatsErr) {
+        setUnreadChats(chatsCount || 0)
+      }
+
+      // 3. Fetch pending returns (status = 'pending')
+      const { count: returnsCount, error: returnsErr } = await supabase
+        .from('returns')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'pending')
+
+      if (!returnsErr) {
+        setPendingReturns(returnsCount || 0)
+      }
+    } catch (e) {
+      console.error('Error fetching admin badge counts:', e)
+    }
+  }
+
+  useEffect(() => {
+    fetchCounts()
+
+    const supabase = createClient()
+
+    const channel = supabase.channel('admin-sidebar-notifications')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'orders'
+      }, () => {
+        fetchCounts()
+      })
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'chat_messages'
+      }, () => {
+        fetchCounts()
+      })
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'returns'
+      }, () => {
+        fetchCounts()
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [])
 
   return (
     <>
@@ -166,6 +248,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   ? pathname === '/admin'
                   : pathname.startsWith(item.href)
               const Icon = item.icon
+
+              let badgeCount = 0
+              if (item.href === '/admin/orders') {
+                badgeCount = unreadOrders
+              } else if (item.href === '/admin/chat') {
+                badgeCount = unreadChats
+              } else if (item.href === '/admin/returns') {
+                badgeCount = pendingReturns
+              }
+
               return (
                 <Link
                   key={item.href}
@@ -173,9 +265,53 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   className={`admin-sidebar__nav-item ${isActive ? 'admin-sidebar__nav-item--active' : ''}`}
                   onClick={() => setSidebarOpen(false)}
                   title={collapsed ? item.label : undefined}
+                  style={{ position: 'relative' }}
                 >
-                  <Icon size={18} />
-                  <span className="admin-sidebar__label">{item.label}</span>
+                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <Icon size={18} />
+                    {collapsed && badgeCount > 0 && (
+                      <span
+                        style={{
+                          position: 'absolute',
+                          top: '-6px',
+                          right: '-8px',
+                          background: '#ef4444',
+                          color: '#fff',
+                          fontSize: '9px',
+                          fontWeight: 700,
+                          width: '15px',
+                          height: '15px',
+                          borderRadius: '50%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          boxShadow: '0 0 4px rgba(239, 68, 68, 0.5)',
+                        }}
+                      >
+                        {badgeCount > 99 ? '99+' : badgeCount}
+                      </span>
+                    )}
+                  </div>
+                  <span className="admin-sidebar__label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                    <span>{item.label}</span>
+                    {!collapsed && badgeCount > 0 && (
+                      <span
+                        style={{
+                          background: '#ef4444',
+                          color: '#fff',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          padding: '2px 6px',
+                          borderRadius: '10px',
+                          marginLeft: '8px',
+                          display: 'inline-block',
+                          boxShadow: '0 0 6px rgba(239, 68, 68, 0.4)',
+                        }}
+                      >
+                        {badgeCount}
+                      </span>
+                    )}
+                  </span>
                 </Link>
               )
             })}

@@ -33,13 +33,12 @@ export default async function OrderDetailPage({ params }: Props) {
 
   if (!order) notFound()
 
-  // Get user reviews to check if the products have been reviewed
   const { data: userReviews } = await supabase
     .from('reviews')
-    .select('product_id')
+    .select('order_id, product_id')
     .eq('user_id', user.id)
 
-  const reviewedProductIds = new Set((userReviews || []).map(r => r.product_id))
+  const reviewedKeys = new Set((userReviews || []).map(r => `${r.order_id}_${r.product_id}`))
 
   // Get coupon info if applied
   const { data: orderCoupon } = await supabase
@@ -223,7 +222,7 @@ export default async function OrderDetailPage({ params }: Props) {
           const displayImage = (item.product_image as string) || primaryImg?.url || null
           const displayName = (item.product_name as string) || productData?.name || 'Produk'
           const isCompleted = order.status === 'delivered' || order.status === 'completed'
-          const hasReviewed = item.product_id && reviewedProductIds.has(item.product_id as string)
+          const hasReviewed = item.product_id && reviewedKeys.has(`${order.id}_${item.product_id}`)
           return (
             <div key={item.id as string} style={{
               display: 'flex',
@@ -303,7 +302,7 @@ export default async function OrderDetailPage({ params }: Props) {
                       </span>
                     ) : (
                       <Link
-                        href={`/products/${productData.slug}#reviews`}
+                        href={`/products/${productData.slug}?order_id=${order.id}#reviews`}
                         className="btn"
                         style={{
                           padding: '6px 12px',
