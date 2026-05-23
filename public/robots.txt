@@ -9,4 +9,4 @@ Disallow: /orders/
 Disallow: /cart/
 Disallow: /checkout/
 
-Sitemap: https://tamimparfume.com/sitemap.xml
+Sitemap: https://tamimparfume.my.id/sitemap.xml

@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 
-const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://tamimparfume.com'
+const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://tamimparfume.my.id'
 
 export default async function sitemap() {
   const supabase = await createClient()
