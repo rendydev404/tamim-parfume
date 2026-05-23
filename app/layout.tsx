@@ -5,6 +5,9 @@ import BanOverlay from "@/components/auth/BanOverlay";
 import "./globals.css";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_APP_URL || "https://tamimparfume.my.id"
+  ),
   title: {
     default: "TAMIM PARFUME — Toko Parfum Premium Online",
     template: "%s | TAMIM PARFUME",
@@ -29,6 +32,21 @@ export const metadata: Metadata = {
     title: "TAMIM PARFUME — Toko Parfum Premium Online",
     description:
       "Koleksi parfum premium terlengkap dengan harga terbaik. Belanja parfum pria, wanita, unisex, dan Arabian.",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "TAMIM PARFUME — Toko Parfum Premium Online",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "TAMIM PARFUME — Toko Parfum Premium Online",
+    description:
+      "Koleksi parfum premium terlengkap dengan harga terbaik. Belanja parfum pria, wanita, unisex, dan Arabian.",
+    images: ["/og-image.png"],
   },
 };
 
