@@ -669,7 +669,7 @@ export default function AdminOrderDetailPage() {
 
             {/* Print and Webhook buttons */}
             <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '16px' }}>
-              {order.shipping_label ? (
+              {order.shipping_label && !order.shipping_label.includes('mock-label') ? (
                 <a
                   href={order.shipping_label}
                   target="_blank"
@@ -685,7 +685,7 @@ export default function AdminOrderDetailPage() {
                   className="btn btn-primary btn-sm"
                   style={{ gap: '6px', display: 'inline-flex', alignItems: 'center' }}
                 >
-                  <Printer size={14} /> Cetak Label Toko (Standard)
+                  <Printer size={14} /> Cetak Label {order.shipping_label?.includes('mock-label') ? 'Pengiriman (Mock Resi)' : 'Toko (Standard)'}
                 </button>
               )}
             </div>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Image from 'next/image'
 import { Droplets, ChevronLeft, ChevronRight } from 'lucide-react'
 
 interface GalleryImage {
@@ -70,12 +71,14 @@ export default function ProductGallery({ images, productName, discount }: Props)
             controls
           />
         ) : (
-          <img
+          <Image
             src={images[activeIndex].url}
             alt={images[activeIndex].alt || `${productName} - Foto ${activeIndex + 1}`}
+            fill
+            sizes="(max-width: 768px) 100vw, 50vw"
+            quality={90}
+            priority
             style={{
-              width: '100%',
-              height: '100%',
               objectFit: 'cover',
               transition: 'opacity 0.2s ease',
             }}
@@ -180,6 +183,7 @@ export default function ProductGallery({ images, productName, discount }: Props)
               key={i}
               onClick={() => setActiveIndex(i)}
               style={{
+                position: 'relative',
                 width: '64px',
                 height: '64px',
                 borderRadius: 'var(--radius-md)',
@@ -203,10 +207,13 @@ export default function ProductGallery({ images, productName, discount }: Props)
                   playsInline
                 />
               ) : (
-                <img
+                <Image
                   src={img.url}
                   alt={`${productName} thumbnail ${i + 1}`}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                  fill
+                  sizes="64px"
+                  quality={75}
+                  style={{ objectFit: 'cover' }}
                 />
               )}
             </button>

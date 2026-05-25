@@ -226,12 +226,26 @@ export default function ProductForm({ initialData, isEdit }: Props) {
     const img = images[index]
     
     // Try to delete from storage
-    if (img.path) {
+    let pathToDelete = img.path
+    if (!pathToDelete && img.url) {
+      const url = img.url
+      const marker = '/storage/v1/object/public/products/'
+      if (url.includes(marker)) {
+        pathToDelete = url.split(marker)[1]
+      } else {
+        const fallbackMarker = '/public/products/'
+        if (url.includes(fallbackMarker)) {
+          pathToDelete = url.split(fallbackMarker)[1]
+        }
+      }
+    }
+
+    if (pathToDelete) {
       try {
         await fetch('/api/admin/upload', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ path: img.path }),
+          body: JSON.stringify({ path: pathToDelete }),
         })
       } catch {
         // Continue anyway

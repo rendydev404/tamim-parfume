@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { formatRupiah, discountPercent } from '@/lib/utils'
 import { Droplets } from 'lucide-react'
 import WishlistButton from './WishlistButton'
@@ -33,10 +34,13 @@ export default function ProductCard({
       <Link href={`/products/${slug}`} className="product-card">
         <div className="product-card__image-wrapper">
           {image ? (
-            <img
+            <Image
               src={image}
               alt={name}
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              fill
+              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+              quality={85}
+              style={{ objectFit: 'cover' }}
               loading="lazy"
             />
           ) : (
@@ -80,3 +84,4 @@ export default function ProductCard({
     </div>
   )
 }
+

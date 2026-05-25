@@ -5,7 +5,13 @@ import { autoBookBiteshipShipment } from '@/lib/biteship'
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json()
+    let body: any
+    try {
+      body = await request.json()
+    } catch (e) {
+      console.log('Empty or invalid JSON body received, returning ping success')
+      return NextResponse.json({ success: true, message: 'Ping successful' })
+    }
 
     const {
       order_id,
@@ -73,6 +79,14 @@ export async function POST(request: Request) {
       .single()
 
     if (!order) {
+      const dummyIds = ['YOUR_ORDER_ID', 'order-12345', 'test-transaction-123']
+      if (
+        dummyIds.includes(order_id) ||
+        order_id.toLowerCase().includes('test') ||
+        order_id.startsWith('MOCK-')
+      ) {
+        return NextResponse.json({ success: true, message: 'Test notification received successfully' })
+      }
       return NextResponse.json({ success: false, error: 'Order not found' }, { status: 404 })
     }
 

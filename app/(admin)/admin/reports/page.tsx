@@ -170,7 +170,7 @@ export default async function AdminReportsPage() {
   })
   const topProducts = Object.values(productSales)
     .sort((a, b) => b.revenue - a.revenue)
-    .slice(0, 8)
+    .slice(0, 5)
   const maxProductRevenue = topProducts.length > 0 ? topProducts[0].revenue : 1
 
   // Peak hours

@@ -1,8 +1,23 @@
 import type { Metadata } from "next";
+import { Montserrat, Playfair_Display } from "next/font/google";
 import { Toaster } from "react-hot-toast";
 import ChatWidget from "@/components/chat/ChatWidget";
 import BanOverlay from "@/components/auth/BanOverlay";
 import "./globals.css";
+
+const montserrat = Montserrat({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700", "800"],
+  display: "swap",
+  variable: "--font-montserrat",
+});
+
+const playfair = Playfair_Display({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+  variable: "--font-playfair",
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(
@@ -56,8 +71,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="id">
-      <body>
+    <html lang="id" className={`${montserrat.variable} ${playfair.variable}`}>
+      <head>
+        <link
+          rel="preconnect"
+          href="https://dsrjrznylbyfitepssvw.supabase.co"
+        />
+      </head>
+      <body className={montserrat.className}>
         <BanOverlay />
         {children}
         <ChatWidget />

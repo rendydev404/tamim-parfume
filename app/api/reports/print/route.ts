@@ -85,7 +85,7 @@ export async function GET() {
     productSales[key].qty += item.quantity
     productSales[key].revenue += item.subtotal
   })
-  const topProducts = Object.values(productSales).sort((a, b) => b.revenue - a.revenue).slice(0, 10)
+  const topProducts = Object.values(productSales).sort((a, b) => b.revenue - a.revenue).slice(0, 5)
 
   const printDate = now.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
   const printTime = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })

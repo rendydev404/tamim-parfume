@@ -36,6 +36,19 @@ interface PrintLabelProps {
   onClose: () => void
 }
 
+const getCourierLogoUrl = (courier: string): string => {
+  const c = courier.toLowerCase().trim()
+  if (c.includes('jne')) return 'https://jnewsonline.com/wp-content/uploads/2021/11/Foto-2-Naskah-Mengenal-Sosok-Kreator-Logo-%E2%80%98Biru-Tua-Merah-JNE.jpg'
+  if (c.includes('jnt') || c.includes('j&t')) return 'https://i.pinimg.com/736x/72/23/3c/72233c7d51fe3ffde3cb3c345a7f7731.jpg'
+  if (c.includes('sicepat')) return 'https://down-id.img.susercontent.com/file/id-11134207-7rasg-m5lkyffxv8n633'
+  if (c.includes('tiki')) return 'https://play-lh.googleusercontent.com/EAxDg9nFsRIzCZI7HBRgq9Qp_fRM_sWUtXnYpUkVpooy2QZUfdQExo1GRmpfGT36rEY'
+  if (c.includes('anteraja')) return 'https://ridergalau.id/wp-content/uploads/2026/01/Logo-Anteraja.png'
+  if (c.includes('pos')) return 'https://admin-piol.posindonesia.co.id/media/pages-makna-logo-4.jpg'
+  if (c.includes('ninja')) return 'https://images.glints.com/unsafe/glints-dashboard.oss-ap-southeast-1.aliyuncs.com/company-logo/de041d5a42fc40c0b07ab466cbb825cf.png'
+  if (c.includes('lion')) return 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQQSlFlOIvjnazSvesp0dUIdp0eME-QvwYYtg&s'
+  return ''
+}
+
 export default function PrintLabel({ order, items, onClose }: PrintLabelProps) {
   const printRef = useRef<HTMLDivElement>(null)
 
@@ -84,9 +97,22 @@ export default function PrintLabel({ order, items, onClose }: PrintLabelProps) {
                 {STORE_INFO.city}, {STORE_INFO.province} {STORE_INFO.postal_code}
               </p>
             </div>
-            <div className="print-label__courier">
-              <span className="print-label__courier-name">{order.shipping_courier?.toUpperCase()}</span>
-              <span className="print-label__courier-service">{order.shipping_service}</span>
+            <div className="print-label__courier" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', alignSelf: 'center' }}>
+              {(() => {
+                const logoUrl = getCourierLogoUrl(order.shipping_courier)
+                return logoUrl ? (
+                  <img
+                    src={logoUrl}
+                    alt={order.shipping_courier}
+                    style={{ height: '36px', width: 'auto', objectFit: 'contain' }}
+                  />
+                ) : (
+                  <span className="print-label__courier-name">{order.shipping_courier?.toUpperCase()}</span>
+                )
+              })()}
+              <span className="print-label__courier-service" style={{ textTransform: 'uppercase', fontWeight: 700, fontSize: '11px', color: '#666', marginTop: '2px' }}>
+                {order.shipping_service}
+              </span>
             </div>
           </div>
 

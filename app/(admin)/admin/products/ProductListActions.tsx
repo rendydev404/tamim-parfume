@@ -22,10 +22,46 @@ export default function ProductListActions({ productId, productName }: Props) {
     try {
       const supabase = createClient()
 
-      // Delete product images from DB first
+      // 1. Fetch all product image records from the database first
+      const { data: dbImages } = await supabase
+        .from('product_images')
+        .select('url')
+        .eq('product_id', productId)
+
+      // 2. Delete physical files from Supabase Storage bucket
+      if (dbImages && dbImages.length > 0) {
+        const paths = dbImages
+          .map((img) => {
+            const url = img.url
+            const marker = '/storage/v1/object/public/products/'
+            if (url.includes(marker)) {
+              return url.split(marker)[1]
+            }
+            const fallbackMarker = '/public/products/'
+            if (url.includes(fallbackMarker)) {
+              return url.split(fallbackMarker)[1]
+            }
+            return null
+          })
+          .filter(Boolean) as string[]
+
+        if (paths.length > 0) {
+          try {
+            await fetch('/api/admin/upload', {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ paths }),
+            })
+          } catch (storageErr) {
+            console.error('Failed to clean up files in storage:', storageErr)
+          }
+        }
+      }
+
+      // 3. Delete product images from DB first
       await supabase.from('product_images').delete().eq('product_id', productId)
 
-      // Delete the product
+      // 4. Delete the product
       const { error } = await supabase.from('products').delete().eq('id', productId)
       if (error) throw error
 

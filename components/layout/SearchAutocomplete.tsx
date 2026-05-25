@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { Search, X, Loader2 } from 'lucide-react'
 import { formatRupiah } from '@/lib/utils'
 
@@ -105,7 +106,7 @@ export default function SearchAutocomplete() {
             >
               <div className="search-autocomplete__item-image">
                 {item.image ? (
-                  <img src={item.image} alt={item.name} style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: '8px' }} />
+                  <Image src={item.image} alt={item.name} width={44} height={44} quality={75} style={{ objectFit: 'cover', borderRadius: '8px' }} />
                 ) : (
                   <div style={{ width: 44, height: 44, background: 'var(--color-bg-tertiary)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <Search size={16} style={{ color: 'var(--color-text-muted)' }} />

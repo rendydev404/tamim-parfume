@@ -415,7 +415,7 @@ export default async function OrderDetailPage({ params }: Props) {
           <p style={{ marginTop: '8px', fontWeight: 500 }}>
             {order.shipping_courier?.toUpperCase()} {order.shipping_service}
           </p>
-          {order.shipping_tracking && (
+          {order.shipping_tracking && ['shipped', 'delivered', 'completed'].includes(order.status) && (
             <p style={{ marginTop: '4px', fontSize: '15px' }}>
               Resi: <strong style={{ fontFamily: 'monospace' }}>{order.shipping_tracking}</strong>
             </p>

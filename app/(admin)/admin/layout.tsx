@@ -89,6 +89,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   useEffect(() => {
+    // Auto-collapse on medium screens (1024px-1280px) on initial load
+    if (typeof window !== 'undefined') {
+      if (window.innerWidth >= 1024 && window.innerWidth <= 1280) {
+        setCollapsed(true)
+      }
+    }
+
     fetchCounts()
 
     const supabase = createClient()
@@ -126,36 +133,64 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     <>
       <Header />
       <style>{`
+        .admin-sidebar__label {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          width: 100%;
+        }
         .admin-sidebar--collapsed {
           width: 68px !important;
         }
         .admin-sidebar--collapsed .admin-sidebar__label,
         .admin-sidebar--collapsed .admin-sidebar__header-text,
         .admin-sidebar--collapsed .admin-sidebar__back-text {
-          display: none;
+          display: none !important;
         }
         .admin-sidebar--collapsed .admin-sidebar__nav-item {
-          justify-content: center;
-          padding-left: 0;
-          padding-right: 0;
-          gap: 0;
+          justify-content: center !important;
+          padding-left: 0 !important;
+          padding-right: 0 !important;
+          gap: 0 !important;
         }
         .admin-sidebar--collapsed .admin-sidebar__bottom {
-          padding-left: 0;
-          padding-right: 0;
-          justify-content: center;
+          padding-left: 0 !important;
+          padding-right: 0 !important;
+          justify-content: center !important;
         }
         .admin-sidebar--collapsed .admin-sidebar__bottom a {
-          justify-content: center;
+          justify-content: center !important;
         }
         .admin-sidebar--collapsed .admin-sidebar__header {
-          justify-content: center;
-          padding-left: 0;
-          padding-right: 0;
+          justify-content: center !important;
+          padding-left: 0 !important;
+          padding-right: 0 !important;
         }
         @media (min-width: 1024px) {
           .admin-content--collapsed {
             margin-left: 68px !important;
+          }
+        }
+        .admin-content {
+          transition: margin-left 0.25s ease !important;
+        }
+        /* Mobile sidebar — full overlay */
+        @media (max-width: 1023px) {
+          .admin-sidebar.admin-sidebar--open {
+            width: var(--sidebar-width) !important;
+          }
+          .admin-sidebar.admin-sidebar--open .admin-sidebar__label {
+            display: flex !important;
+          }
+          .admin-sidebar.admin-sidebar--open .admin-sidebar__header-text,
+          .admin-sidebar.admin-sidebar--open .admin-sidebar__back-text {
+            display: inline !important;
+          }
+          .admin-sidebar.admin-sidebar--open .admin-sidebar__nav-item {
+            justify-content: flex-start !important;
+            padding-left: 24px !important;
+            padding-right: 24px !important;
+            gap: 12px !important;
           }
         }
         .admin-collapse-btn {
@@ -292,7 +327,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                       </span>
                     )}
                   </div>
-                  <span className="admin-sidebar__label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                  <span className="admin-sidebar__label">
                     <span>{item.label}</span>
                     {!collapsed && badgeCount > 0 && (
                       <span

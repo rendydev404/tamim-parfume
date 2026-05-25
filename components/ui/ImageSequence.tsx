@@ -73,12 +73,12 @@ export default function ImageSequence() {
     return () => { cancelled = true }
   }, [])
 
-  // ---- Preload all frames in background ----
+  // ---- Preload all frames in background (deferred) ----
   const preload = useCallback((cfg: HeroConfig) => {
     frames.current = new Array(cfg.frameCount).fill(null)
     let next = 0
     let active = 0
-    const MAX_CONCURRENT = 6
+    const MAX_CONCURRENT = 3
 
     function kick() {
       while (active < MAX_CONCURRENT && next < cfg.frameCount) {
@@ -95,7 +95,18 @@ export default function ImageSequence() {
         }
       }
     }
-    kick()
+
+    // Defer preloading to avoid competing with critical resources
+    const startPreload = () => {
+      if ('requestIdleCallback' in window) {
+        (window as unknown as { requestIdleCallback: (cb: () => void) => void }).requestIdleCallback(kick)
+      } else {
+        setTimeout(kick, 100)
+      }
+    }
+
+    // Wait 2s after page load before starting frame preload
+    setTimeout(startPreload, 2000)
   }, [])
 
   // ---- Find closest loaded frame ----

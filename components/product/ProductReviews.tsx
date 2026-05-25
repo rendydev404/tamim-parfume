@@ -3,15 +3,22 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Star, Loader2, MessageSquare, Camera } from 'lucide-react'
+import { Star, Loader2, MessageSquare, Camera, Video, Play } from 'lucide-react'
 import toast from 'react-hot-toast'
+
+interface ReviewMedia {
+  url: string
+  type: 'image' | 'video'
+}
 
 interface Review {
   id: string
   rating: number
   comment: string
   created_at: string
-  images?: string[] // Decoded base64 images
+  images?: string[]
+  videos?: string[]
+  media?: ReviewMedia[]
   user: {
     full_name: string
     avatar_url: string | null
@@ -40,9 +47,10 @@ export default function ProductReviews({ productId, productName }: Props) {
 
   // New premium states
   const [uploadedImages, setUploadedImages] = useState<string[]>([])
+  const [uploadedVideo, setUploadedVideo] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [activeFilter, setActiveFilter] = useState<string>('all')
-  const [lightboxImages, setLightboxImages] = useState<string[] | null>(null)
+  const [lightboxMedia, setLightboxMedia] = useState<ReviewMedia[] | null>(null)
   const [lightboxIndex, setLightboxIndex] = useState<number>(0)
 
   useEffect(() => {
@@ -53,14 +61,14 @@ export default function ProductReviews({ productId, productName }: Props) {
   // Keyboard events for lightbox navigation & close
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (!lightboxImages) return
+      if (!lightboxMedia) return
       if (e.key === 'Escape') closeLightbox()
-      if (e.key === 'ArrowLeft') prevLightboxImage()
-      if (e.key === 'ArrowRight') nextLightboxImage()
+      if (e.key === 'ArrowLeft') prevLightboxItem()
+      if (e.key === 'ArrowRight') nextLightboxItem()
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [lightboxImages])
+  }, [lightboxMedia])
 
   const loadReviews = async () => {
     const supabase = createClient()
@@ -87,12 +95,14 @@ export default function ProductReviews({ productId, productName }: Props) {
       setReviews(data.map(r => {
         let text = r.comment
         let images: string[] = []
+        let videos: string[] = []
         try {
           if (r.comment && r.comment.trim().startsWith('{')) {
             const parsed = JSON.parse(r.comment)
             if (parsed && typeof parsed === 'object') {
               text = parsed.text || ''
               images = parsed.images || []
+              videos = parsed.videos || []
             }
           }
         } catch (e) {
@@ -100,12 +110,20 @@ export default function ProductReviews({ productId, productName }: Props) {
           text = r.comment
         }
 
+        // Build unified media array
+        const media: ReviewMedia[] = [
+          ...images.map(url => ({ url, type: 'image' as const })),
+          ...videos.map(url => ({ url, type: 'video' as const })),
+        ]
+
         return {
           id: r.id,
           rating: r.rating,
           comment: text,
           created_at: r.created_at,
           images,
+          videos,
+          media,
           user: profileMap.get(r.user_id) || null,
         }
       }))
@@ -267,6 +285,52 @@ export default function ProductReviews({ productId, productName }: Props) {
     setUploadedImages(prev => prev.filter((_, i) => i !== index))
   }
 
+  const handleVideoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+    const file = files[0]
+
+    // Validate type
+    if (!file.type.startsWith('video/')) {
+      toast.error('Hanya file video yang diperbolehkan')
+      return
+    }
+
+    // Validate size (max 50MB)
+    if (file.size > 50 * 1024 * 1024) {
+      toast.error('Ukuran video maksimal 50MB')
+      return
+    }
+
+    setUploading(true)
+    const toastId = toast.loading('Mengunggah video...')
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const res = await fetch('/api/reviews/upload', {
+        method: 'POST',
+        body: formData,
+      })
+
+      const result = await res.json()
+      if (!result.success) throw new Error(result.error)
+
+      setUploadedVideo(result.data.url)
+      toast.success('Video berhasil diunggah!', { id: toastId })
+    } catch (err: any) {
+      toast.error(err.message || 'Gagal mengunggah video', { id: toastId })
+    } finally {
+      setUploading(false)
+      // Reset input
+      e.target.value = ''
+    }
+  }
+
+  const removeUploadedVideo = () => {
+    setUploadedVideo(null)
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!userId || !comment.trim() || !reviewOrderId) return
@@ -292,9 +356,14 @@ export default function ProductReviews({ productId, productName }: Props) {
         return
       }
 
-      // Zero-migration solution: save comment and images arrays serialized in JSON
-      const commentPayload = uploadedImages.length > 0
-        ? JSON.stringify({ text: comment.trim(), images: uploadedImages })
+      // Zero-migration solution: save comment, images, and videos serialized in JSON
+      const hasMedia = uploadedImages.length > 0 || uploadedVideo
+      const commentPayload = hasMedia
+        ? JSON.stringify({
+            text: comment.trim(),
+            images: uploadedImages,
+            ...(uploadedVideo ? { videos: [uploadedVideo] } : {}),
+          })
         : comment.trim()
 
       const { error } = await supabase
@@ -312,6 +381,7 @@ export default function ProductReviews({ productId, productName }: Props) {
       setShowForm(false)
       setComment('')
       setUploadedImages([])
+      setUploadedVideo(null)
       setCanReview(false)
       loadReviews()
     } catch (error: any) {
@@ -322,28 +392,28 @@ export default function ProductReviews({ productId, productName }: Props) {
   }
 
   // Lightbox controllers
-  const openLightbox = (images: string[], index: number) => {
-    setLightboxImages(images)
+  const openLightbox = (media: ReviewMedia[], index: number) => {
+    setLightboxMedia(media)
     setLightboxIndex(index)
-    document.body.style.overflow = 'hidden' // Disable body scroll
+    document.body.style.overflow = 'hidden'
   }
 
   const closeLightbox = () => {
-    setLightboxImages(null)
+    setLightboxMedia(null)
     setLightboxIndex(0)
-    document.body.style.overflow = 'unset' // Re-enable body scroll
+    document.body.style.overflow = 'unset'
   }
 
-  const prevLightboxImage = (e?: React.MouseEvent) => {
+  const prevLightboxItem = (e?: React.MouseEvent) => {
     e?.stopPropagation()
-    if (!lightboxImages) return
-    setLightboxIndex(prev => (prev === 0 ? lightboxImages.length - 1 : prev - 1))
+    if (!lightboxMedia) return
+    setLightboxIndex(prev => (prev === 0 ? lightboxMedia.length - 1 : prev - 1))
   }
 
-  const nextLightboxImage = (e?: React.MouseEvent) => {
+  const nextLightboxItem = (e?: React.MouseEvent) => {
     e?.stopPropagation()
-    if (!lightboxImages) return
-    setLightboxIndex(prev => (prev === lightboxImages.length - 1 ? 0 : prev + 1))
+    if (!lightboxMedia) return
+    setLightboxIndex(prev => (prev === lightboxMedia.length - 1 ? 0 : prev + 1))
   }
 
   const avgRating = reviews.length > 0
@@ -373,7 +443,7 @@ export default function ProductReviews({ productId, productName }: Props) {
   // Filter reviews client-side
   const filteredReviews = reviews.filter(r => {
     if (activeFilter === 'all') return true
-    if (activeFilter === 'photo') return r.images && r.images.length > 0
+    if (activeFilter === 'media') return (r.media && r.media.length > 0)
     return r.rating === parseInt(activeFilter)
   })
 
@@ -556,9 +626,9 @@ export default function ProductReviews({ productId, productName }: Props) {
                 </div>
 
                 {/* Image Uploader */}
-                <div style={{ marginBottom: '20px' }}>
+                <div style={{ marginBottom: '16px' }}>
                   <label style={{ fontSize: '13px', fontWeight: 500, marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Camera size={16} /> Unggah Foto Parfum (Maks 3)
+                    <Camera size={16} /> Unggah Foto (Maks 3)
                   </label>
                   
                   <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
@@ -635,6 +705,81 @@ export default function ProductReviews({ productId, productName }: Props) {
                   </div>
                 </div>
 
+                {/* Video Uploader */}
+                <div style={{ marginBottom: '20px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: 500, marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Video size={16} /> Unggah Video (Maks 1, maks 50MB)
+                  </label>
+                  
+                  {uploadedVideo ? (
+                    <div style={{
+                      position: 'relative',
+                      maxWidth: '240px',
+                      borderRadius: 'var(--radius-md)',
+                      overflow: 'hidden',
+                      border: '1.5px solid var(--color-border)',
+                      boxShadow: 'var(--shadow-sm)',
+                    }}>
+                      <video
+                        src={uploadedVideo}
+                        style={{ width: '100%', maxHeight: '160px', objectFit: 'cover', display: 'block' }}
+                        controls
+                        muted
+                      />
+                      <button
+                        type="button"
+                        onClick={removeUploadedVideo}
+                        style={{
+                          position: 'absolute',
+                          top: '6px',
+                          right: '6px',
+                          background: 'rgba(0, 0, 0, 0.6)',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: '50%',
+                          width: '24px',
+                          height: '24px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          fontSize: '12px',
+                          fontWeight: 'bold',
+                        }}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ) : (
+                    <label
+                      style={{
+                        width: '120px',
+                        height: '80px',
+                        borderRadius: 'var(--radius-md)',
+                        border: '1.5px dashed var(--color-border)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: uploading ? 'not-allowed' : 'pointer',
+                        background: 'var(--color-bg-secondary)',
+                        transition: 'all var(--transition-fast) ease',
+                        opacity: uploading ? 0.5 : 1,
+                      }}
+                    >
+                      <Play size={18} style={{ color: 'var(--color-text-muted)' }} />
+                      <span style={{ fontSize: '10px', color: 'var(--color-text-muted)', marginTop: '4px' }}>Video</span>
+                      <input
+                        type="file"
+                        accept="video/mp4,video/webm,video/quicktime"
+                        onChange={handleVideoChange}
+                        disabled={uploading}
+                        style={{ display: 'none' }}
+                      />
+                    </label>
+                  )}
+                </div>
+
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button type="submit" className="btn btn-primary btn-sm" disabled={submitting || uploading}>
                     {submitting ? (
@@ -648,6 +793,7 @@ export default function ProductReviews({ productId, productName }: Props) {
                     onClick={() => {
                       setShowForm(false)
                       setUploadedImages([])
+                      setUploadedVideo(null)
                     }}
                     className="btn btn-secondary btn-sm"
                   >
@@ -663,7 +809,7 @@ export default function ProductReviews({ productId, productName }: Props) {
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '20px' }}>
               {[
                 { id: 'all', label: `Semua (${reviews.length})` },
-                { id: 'photo', label: `Dengan Foto (${reviews.filter(r => r.images && r.images.length > 0).length})` },
+                { id: 'media', label: `Dengan Media (${reviews.filter(r => r.media && r.media.length > 0).length})` },
                 ...[5, 4, 3, 2, 1].map(star => ({
                   id: star.toString(),
                   label: `${star} Bintang (${reviews.filter(r => r.rating === star).length})`
@@ -778,33 +924,63 @@ export default function ProductReviews({ productId, productName }: Props) {
                         {review.comment}
                       </p>
 
-                      {/* Premium Review Photo Grid */}
-                      {review.images && review.images.length > 0 && (
+                      {/* Premium Review Media Grid (Photos + Videos) */}
+                      {review.media && review.media.length > 0 && (
                         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '12px' }}>
-                          {review.images.map((img, imgIdx) => (
+                          {review.media.map((item, mediaIdx) => (
                             <div
-                              key={imgIdx}
-                              onClick={() => openLightbox(review.images!, imgIdx)}
+                              key={mediaIdx}
+                              onClick={() => openLightbox(review.media!, mediaIdx)}
                               className="review-photo-thumb"
                               style={{
-                                width: '72px',
+                                width: item.type === 'video' ? '120px' : '72px',
                                 height: '72px',
                                 borderRadius: 'var(--radius-md)',
                                 overflow: 'hidden',
                                 cursor: 'zoom-in',
                                 border: '1px solid var(--color-border-light)',
-                                boxShadow: 'var(--shadow-sm)'
+                                boxShadow: 'var(--shadow-sm)',
+                                position: 'relative',
                               }}
                             >
-                              <img
-                                src={img}
-                                alt={`Foto ulasan ${imgIdx + 1}`}
-                                style={{
-                                  width: '100%',
-                                  height: '100%',
-                                  objectFit: 'cover',
-                                }}
-                              />
+                              {item.type === 'video' ? (
+                                <>
+                                  <video
+                                    src={item.url}
+                                    style={{
+                                      width: '100%',
+                                      height: '100%',
+                                      objectFit: 'cover',
+                                    }}
+                                    muted
+                                    preload="metadata"
+                                  />
+                                  {/* Play icon overlay */}
+                                  <div style={{
+                                    position: 'absolute',
+                                    top: 0,
+                                    left: 0,
+                                    width: '100%',
+                                    height: '100%',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    background: 'rgba(0,0,0,0.3)',
+                                  }}>
+                                    <Play size={24} fill="#fff" color="#fff" />
+                                  </div>
+                                </>
+                              ) : (
+                                <img
+                                  src={item.url}
+                                  alt={`Foto ulasan ${mediaIdx + 1}`}
+                                  style={{
+                                    width: '100%',
+                                    height: '100%',
+                                    objectFit: 'cover',
+                                  }}
+                                />
+                              )}
                             </div>
                           ))}
                         </div>
@@ -829,7 +1005,7 @@ export default function ProductReviews({ productId, productName }: Props) {
       )}
 
       {/* Lightbox Modal */}
-      {lightboxImages && lightboxImages.length > 0 && (
+      {lightboxMedia && lightboxMedia.length > 0 && (
         <div
           onClick={closeLightbox}
           style={{
@@ -874,9 +1050,9 @@ export default function ProductReviews({ productId, productName }: Props) {
           </button>
 
           {/* Left Navigation */}
-          {lightboxImages.length > 1 && (
+          {lightboxMedia.length > 1 && (
             <button
-              onClick={prevLightboxImage}
+              onClick={prevLightboxItem}
               style={{
                 position: 'absolute',
                 left: '24px',
@@ -898,7 +1074,7 @@ export default function ProductReviews({ productId, productName }: Props) {
             </button>
           )}
 
-          {/* Image Container */}
+          {/* Media Container */}
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
@@ -910,17 +1086,33 @@ export default function ProductReviews({ productId, productName }: Props) {
               alignItems: 'center',
             }}
           >
-            <img
-              src={lightboxImages[lightboxIndex]}
-              alt={`Foto ulasan besar ${lightboxIndex + 1}`}
-              style={{
-                maxWidth: '100%',
-                maxHeight: '75vh',
-                objectFit: 'contain',
-                borderRadius: 'var(--radius-lg)',
-                boxShadow: '0 25px 50px -12px rgba(0,0,0,0.6)',
-              }}
-            />
+            {lightboxMedia[lightboxIndex].type === 'video' ? (
+              <video
+                key={lightboxMedia[lightboxIndex].url}
+                src={lightboxMedia[lightboxIndex].url}
+                controls
+                autoPlay
+                style={{
+                  maxWidth: '100%',
+                  maxHeight: '75vh',
+                  borderRadius: 'var(--radius-lg)',
+                  boxShadow: '0 25px 50px -12px rgba(0,0,0,0.6)',
+                  background: '#000',
+                }}
+              />
+            ) : (
+              <img
+                src={lightboxMedia[lightboxIndex].url}
+                alt={`Foto ulasan besar ${lightboxIndex + 1}`}
+                style={{
+                  maxWidth: '100%',
+                  maxHeight: '75vh',
+                  objectFit: 'contain',
+                  borderRadius: 'var(--radius-lg)',
+                  boxShadow: '0 25px 50px -12px rgba(0,0,0,0.6)',
+                }}
+              />
+            )}
             {/* Index Counter */}
             <p style={{
               color: '#fff',
@@ -932,14 +1124,14 @@ export default function ProductReviews({ productId, productName }: Props) {
               borderRadius: '20px',
               letterSpacing: '1px'
             }}>
-              {lightboxIndex + 1} / {lightboxImages.length}
+              {lightboxIndex + 1} / {lightboxMedia.length}
             </p>
           </div>
 
           {/* Right Navigation */}
-          {lightboxImages.length > 1 && (
+          {lightboxMedia.length > 1 && (
             <button
-              onClick={nextLightboxImage}
+              onClick={nextLightboxItem}
               style={{
                 position: 'absolute',
                 right: '24px',

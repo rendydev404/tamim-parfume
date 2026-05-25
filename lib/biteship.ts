@@ -58,6 +58,59 @@ export function mapCourierToBiteship(courier: string): string {
 }
 
 /**
+ * Generates an authentic-looking airway bill (resi) number based on the selected Indonesian courier.
+ */
+export function generateRealMockAWB(courierCode: string): string {
+  const code = courierCode.toLowerCase().trim()
+  
+  // Helper to generate a string of random digits of length N
+  const randDigits = (length: number): string => {
+    let result = ''
+    for (let i = 0; i < length; i++) {
+      result += Math.floor(Math.random() * 10).toString()
+    }
+    return result
+  }
+
+  if (code.includes('jne')) {
+    // JNE: 15-digit purely numeric starting with 01
+    return `01${randDigits(13)}`
+  }
+  if (code.includes('jnt') || code.includes('j&t')) {
+    // J&T Express: Starts with JP followed by 10 digits
+    return `JP${randDigits(10)}`
+  }
+  if (code.includes('sicepat')) {
+    // SiCepat: 12-digit numeric starting with 00
+    return `00${randDigits(10)}`
+  }
+  if (code.includes('tiki')) {
+    // TIKI: 12-digit numeric starting with 66
+    return `66${randDigits(10)}`
+  }
+  if (code.includes('anteraja')) {
+    // Anteraja: 13-digit numeric starting with 1000
+    return `1000${randDigits(9)}`
+  }
+  if (code.includes('pos')) {
+    // POS Indonesia: 11-digit numeric starting with 19
+    return `19${randDigits(9)}`
+  }
+  if (code.includes('ninja')) {
+    // Ninja Xpress: Starts with NLID followed by 10 digits
+    return `NLID${randDigits(10)}`
+  }
+  if (code.includes('lion')) {
+    // Lion Parcel: Starts with LP followed by 10 digits
+    return `LP${randDigits(10)}`
+  }
+
+  // Default fallback: 12-digit numeric starting with 88
+  return `88${randDigits(10)}`
+}
+
+
+/**
  * Creates a courier booking/shipment request in Biteship
  */
 export async function createBiteshipShipment(params: CreateShipmentParams): Promise<ShipmentResponse> {
@@ -80,7 +133,7 @@ export async function createBiteshipShipment(params: CreateShipmentParams): Prom
 
     return {
       success: true,
-      trackingNumber: `TP-${courierUpper}-MOCK${randId}`,
+      trackingNumber: generateRealMockAWB(params.courierCode),
       labelUrl: `https://biteship.com/labels/mock-label-${randId}.pdf`,
       biteshipOrderId: `bship_order_${randId}`,
       status: 'allocated',
@@ -144,7 +197,7 @@ export async function createBiteshipShipment(params: CreateShipmentParams): Prom
         const courierUpper = params.courierCode.toUpperCase()
         return {
           success: true,
-          trackingNumber: `TP-${courierUpper}-MOCK${randId}`,
+          trackingNumber: generateRealMockAWB(params.courierCode),
           labelUrl: `https://biteship.com/labels/mock-label-${randId}.pdf`,
           biteshipOrderId: `bship_order_${randId}`,
           status: 'allocated',
@@ -176,7 +229,7 @@ export async function createBiteshipShipment(params: CreateShipmentParams): Prom
       const courierUpper = params.courierCode.toUpperCase()
       return {
         success: true,
-        trackingNumber: `TP-${courierUpper}-MOCK${randId}`,
+        trackingNumber: generateRealMockAWB(params.courierCode),
         labelUrl: `https://biteship.com/labels/mock-label-${randId}.pdf`,
         biteshipOrderId: `bship_order_${randId}`,
         status: 'allocated',
@@ -193,7 +246,11 @@ export async function createBiteshipShipment(params: CreateShipmentParams): Prom
  * Track shipment checkpoints directly from Biteship
  */
 export async function trackBiteshipShipment(trackingNumber: string, courierCode: string) {
-  const isMockMode = !BITESHIP_API_KEY || BITESHIP_API_KEY.includes('YOUR_BITESHIP_API_KEY') || trackingNumber.startsWith('TP-') || trackingNumber.includes('MOCK')
+  const isMockMode = !BITESHIP_API_KEY || 
+    BITESHIP_API_KEY.includes('YOUR_BITESHIP_API_KEY') || 
+    BITESHIP_API_KEY.startsWith('biteship_test') || 
+    trackingNumber.startsWith('TP-') || 
+    trackingNumber.includes('MOCK')
   
   if (isMockMode) {
     return {

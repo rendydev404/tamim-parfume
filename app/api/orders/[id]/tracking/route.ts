@@ -276,7 +276,12 @@ export async function GET(
 
   // Fetch Biteship Tracking or fall back to simulation
   const trackingNumber = order.shipping_tracking
-  const isMockTracking = !trackingNumber || trackingNumber.startsWith('TP-') || trackingNumber.includes('MOCK')
+  const isMockTracking = !trackingNumber || 
+    trackingNumber.startsWith('TP-') || 
+    trackingNumber.includes('MOCK') ||
+    !process.env.BITESHIP_API_KEY ||
+    process.env.BITESHIP_API_KEY.includes('YOUR_BITESHIP_API_KEY') ||
+    process.env.BITESHIP_API_KEY.startsWith('biteship_test')
 
   let checkpoints = []
   let progress = 0

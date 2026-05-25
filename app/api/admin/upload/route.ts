@@ -109,18 +109,25 @@ export async function POST(request: Request) {
 // DELETE endpoint to remove uploaded images
 export async function DELETE(request: Request) {
   try {
-    const { path } = await request.json()
+    const body = await request.json()
+    const paths: string[] = []
 
-    if (!path) {
+    if (body.paths && Array.isArray(body.paths)) {
+      paths.push(...body.paths)
+    } else if (body.path) {
+      paths.push(body.path)
+    }
+
+    if (paths.length === 0) {
       return NextResponse.json(
-        { success: false, error: 'No path provided' },
+        { success: false, error: 'No path or paths provided' },
         { status: 400 }
       )
     }
 
     const { error } = await supabaseAdmin.storage
       .from('products')
-      .remove([path])
+      .remove(paths)
 
     if (error) {
       console.error('Storage delete error:', error)
