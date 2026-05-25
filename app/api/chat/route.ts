@@ -72,8 +72,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const { subject, message, message_type, metadata } = await request.json()
-
   // Get sender's profile info
   const { data: profile } = await supabase
     .from('profiles')
@@ -81,14 +79,19 @@ export async function POST(request: NextRequest) {
     .eq('id', user.id)
     .single()
 
-  const isCustomer = profile?.role !== 'admin'
-  const senderName = profile?.full_name || user.email || 'Pelanggan'
+  const isAdmin = profile?.role === 'admin'
+  const isCustomer = !isAdmin
+
+  const { subject, message, message_type, metadata, user_id: targetUserId } = await request.json()
+
+  const userIdToUse = (isAdmin && targetUserId) ? targetUserId : user.id
+  const senderName = isCustomer ? (profile?.full_name || user.email || 'Pelanggan') : 'Admin'
 
   // Check if user already has an open conversation
   const { data: existing } = await supabase
     .from('chat_conversations')
     .select('id')
-    .eq('user_id', user.id)
+    .eq('user_id', userIdToUse)
     .eq('status', 'open')
     .limit(1)
     .single()
@@ -126,7 +129,7 @@ export async function POST(request: NextRequest) {
   const { data: conv, error } = await supabase
     .from('chat_conversations')
     .insert({
-      user_id: user.id,
+      user_id: userIdToUse,
       subject: subject || 'Chat baru',
     })
     .select()

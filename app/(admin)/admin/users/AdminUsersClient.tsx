@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatDate } from '@/lib/utils'
 import {
-  MoreVertical, Edit2, Trash2, Shield, ShieldOff, Ban, X, Check, UserX
+  MoreVertical, Edit2, Trash2, Shield, ShieldOff, Ban, X, Check, UserX, MessageCircle
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -329,6 +329,11 @@ export default function AdminUsersClient({ users: initialUsers, currentAdminId }
               {/* Edit */}
               <button onClick={() => openEditModal(user)} style={menuItemStyle}>
                 <Edit2 size={14} /> Edit Profil
+              </button>
+
+              {/* Chat User */}
+              <button onClick={() => router.push(`/admin/chat?userId=${user.id}`)} style={menuItemStyle}>
+                <MessageCircle size={14} style={{ color: 'var(--color-primary)' }} /> Chat User
               </button>
 
               {/* Make Admin / Make User */}

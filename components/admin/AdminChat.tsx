@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { MessageCircle, Send, Loader2, ArrowLeft, Search, Package, ShoppingBag, Truck, ChevronRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { RealtimeChannel } from '@supabase/supabase-js'
+import { useSearchParams } from 'next/navigation'
 
 interface Conversation {
   id: string
@@ -74,6 +75,9 @@ function formatRp(amount: number): string {
 }
 
 export default function AdminChatPage() {
+  const searchParams = useSearchParams()
+  const userIdParam = searchParams.get('userId')
+
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [selectedConv, setSelectedConv] = useState<Conversation | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
@@ -164,7 +168,37 @@ export default function AdminChatPage() {
     try {
       const res = await fetch('/api/chat')
       const json = await res.json()
-      setConversations(json.data || [])
+      const convList = json.data || []
+      setConversations(convList)
+
+      // If userIdParam is present, look for or create conversation with this user
+      if (userIdParam) {
+        const existing = convList.find((c: Conversation) => c.user_id === userIdParam)
+        if (existing) {
+          setSelectedConv(existing)
+        } else {
+          // Create new conversation for this user
+          const createRes = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              user_id: userIdParam,
+              subject: 'Chat baru',
+              message: 'Halo, ada yang bisa kami bantu?',
+            })
+          })
+          const createJson = await createRes.json()
+          if (createJson.data && createJson.data.conversation_id) {
+            // Reload conversations to include the new one
+            const reloadRes = await fetch('/api/chat')
+            const reloadJson = await reloadRes.json()
+            const reloadedConvs = reloadJson.data || []
+            setConversations(reloadedConvs)
+            const newConv = reloadedConvs.find((c: Conversation) => c.id === createJson.data.conversation_id)
+            if (newConv) setSelectedConv(newConv)
+          }
+        }
+      }
     } catch (e) { console.error(e) }
     finally { setLoading(false) }
   }
