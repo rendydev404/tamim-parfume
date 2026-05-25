@@ -90,6 +90,34 @@ export async function POST(
     } catch (err) {
       console.error('Failed to trigger Telegram notification:', err)
     }
+  } else {
+    // If Admin sends the message, notify the customer via email!
+    try {
+      const { data: conversation } = await supabase
+        .from('chat_conversations')
+        .select('user_id')
+        .eq('id', conversationId)
+        .single()
+
+      if (conversation) {
+        const { data: customerProfile } = await supabase
+          .from('profiles')
+          .select('email, full_name')
+          .eq('id', conversation.user_id)
+          .single()
+
+        if (customerProfile && customerProfile.email) {
+          const { sendChatReplyEmail } = await import('@/lib/email')
+          sendChatReplyEmail(
+            customerProfile.email,
+            customerProfile.full_name || 'Pelanggan',
+            message.trim()
+          ).catch(err => console.error('[API Chat] Failed to send email notification:', err))
+        }
+      }
+    } catch (err) {
+      console.error('[API Chat] Error sending email notification to customer:', err)
+    }
   }
 
   return NextResponse.json({ data })

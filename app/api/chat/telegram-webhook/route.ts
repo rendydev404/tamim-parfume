@@ -130,7 +130,27 @@ export async function POST(request: NextRequest) {
       .update({ last_message_at: new Date().toISOString() })
       .eq('id', conversationId)
 
-    // 10. Send a beautiful success confirmation back to the admin in Telegram
+    // 10. Send email notification to customer (non-blocking)
+    try {
+      const { data: customerProfile } = await supabaseAdmin
+        .from('profiles')
+        .select('email, full_name')
+        .eq('id', conversation.user_id)
+        .single()
+
+      if (customerProfile && customerProfile.email) {
+        const { sendChatReplyEmail } = await import('@/lib/email')
+        sendChatReplyEmail(
+          customerProfile.email,
+          customerProfile.full_name || 'Pelanggan',
+          text.trim()
+        ).catch(err => console.error('[Telegram Webhook] Failed to send email notification:', err))
+      }
+    } catch (err) {
+      console.error('[Telegram Webhook] Error fetching customer profile for email:', err)
+    }
+
+    // 11. Send a beautiful success confirmation back to the admin in Telegram
     await sendTelegramReply(
       `✅ *Pesan Terkirim!*\n\nJawaban Anda telah sukses terkirim ke pelanggan di website.`,
       body.message.message_id
