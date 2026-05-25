@@ -74,14 +74,13 @@ export async function POST(request: NextRequest) {
     const supabaseAdmin = createAdminClient()
 
     // 6. Find the Admin's user ID from profiles
-    const { data: adminProfile, error: profileError } = await supabaseAdmin
+    const { data: adminProfiles, error: profileError } = await supabaseAdmin
       .from('profiles')
       .select('id, full_name')
       .eq('role', 'admin')
       .limit(1)
-      .single()
 
-    if (profileError || !adminProfile) {
+    if (profileError || !adminProfiles || adminProfiles.length === 0) {
       console.error('[Telegram Webhook] Failed to get admin profile ID:', profileError)
       await sendTelegramReply(
         `⚠️ *Kesalahan Sistem*\n\nTidak dapat menemukan profil Admin di database website Anda.`,
@@ -89,6 +88,8 @@ export async function POST(request: NextRequest) {
       )
       return NextResponse.json({ success: false, error: 'Admin profile not found' })
     }
+
+    const adminProfile = adminProfiles[0]
 
     // 7. Verify the conversation exists
     const { data: conversation, error: convError } = await supabaseAdmin
