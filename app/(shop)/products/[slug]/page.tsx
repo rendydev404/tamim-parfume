@@ -19,15 +19,29 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const supabase = await createClient()
   const { data: product } = await supabase
     .from('products')
-    .select('name, short_description, images:product_images(url, is_primary)')
+    .select('name, short_description, images:product_images(url, is_primary, sort_order)')
     .eq('slug', slug)
     .single()
 
   if (!product) return { title: 'Produk Tidak Ditemukan' }
 
-  const imgs = (product.images as { url: string; is_primary: boolean }[]) || []
-  const primaryImg = imgs.find(i => i.is_primary) || imgs[0]
-  const imageUrl = primaryImg?.url || null
+  const imgs = (product.images as { url: string; is_primary: boolean; sort_order?: number }[]) || []
+  
+  // Helper to detect if a file is a video
+  const isVideo = (url: string) => 
+    url && (/\.(mp4|webm|ogg|mov)$/i.test(url) || url.includes('video') || url.includes('.mp4'))
+
+  // Select the best cover image (Must be a static image, not a video)
+  let coverImg = imgs.find(i => i.is_primary && !isVideo(i.url))
+
+  if (!coverImg) {
+    const nonVideos = imgs
+      .filter(i => !isVideo(i.url))
+      .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+    coverImg = nonVideos[0]
+  }
+
+  const imageUrl = coverImg?.url || null
 
   return {
     title: product.name,
