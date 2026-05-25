@@ -74,6 +74,16 @@ export async function POST(request: NextRequest) {
 
   const { subject, message, message_type, metadata } = await request.json()
 
+  // Get sender's profile info
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('full_name, role')
+    .eq('id', user.id)
+    .single()
+
+  const isCustomer = profile?.role !== 'admin'
+  const senderName = profile?.full_name || user.email || 'Pelanggan'
+
   // Check if user already has an open conversation
   const { data: existing } = await supabase
     .from('chat_conversations')
@@ -98,6 +108,16 @@ export async function POST(request: NextRequest) {
         .from('chat_conversations')
         .update({ last_message_at: new Date().toISOString() })
         .eq('id', existing.id)
+
+      // Send Telegram notification if sent by customer
+      if (isCustomer) {
+        try {
+          const { sendTelegramNotification } = await import('@/lib/telegram')
+          await sendTelegramNotification(existing.id, senderName, message)
+        } catch (err) {
+          console.error('Failed to trigger Telegram notification:', err)
+        }
+      }
     }
     return NextResponse.json({ data: { conversation_id: existing.id } })
   }
@@ -126,6 +146,16 @@ export async function POST(request: NextRequest) {
     if (message_type && message_type !== 'text') msgPayload.message_type = message_type
     if (metadata) msgPayload.metadata = metadata
     await supabase.from('chat_messages').insert(msgPayload)
+
+    // Send Telegram notification if sent by customer
+    if (isCustomer) {
+      try {
+        const { sendTelegramNotification } = await import('@/lib/telegram')
+        await sendTelegramNotification(conv.id, senderName, message)
+      } catch (err) {
+        console.error('Failed to trigger Telegram notification:', err)
+      }
+    }
   }
 
   return NextResponse.json({ data: { conversation_id: conv.id } })

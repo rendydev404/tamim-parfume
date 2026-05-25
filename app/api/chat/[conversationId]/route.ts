@@ -79,5 +79,18 @@ export async function POST(
     .update({ last_message_at: new Date().toISOString() })
     .eq('id', conversationId)
 
+  // Send Telegram notification if sent by customer
+  const senderRole = data.sender?.role
+  const isCustomer = senderRole !== 'admin'
+  if (isCustomer) {
+    try {
+      const senderName = data.sender?.full_name || user.email || 'Pelanggan'
+      const { sendTelegramNotification } = await import('@/lib/telegram')
+      await sendTelegramNotification(conversationId, senderName, message.trim())
+    } catch (err) {
+      console.error('Failed to trigger Telegram notification:', err)
+    }
+  }
+
   return NextResponse.json({ data })
 }
