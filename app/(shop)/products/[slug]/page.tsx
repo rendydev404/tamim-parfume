@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { Suspense } from 'react'
 import { notFound } from 'next/navigation'
 import { discountPercent } from '@/lib/utils'
@@ -16,7 +17,7 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const { data: product } = await supabase
     .from('products')
     .select('name, short_description, images:product_images(url, is_primary, sort_order)')
@@ -41,7 +42,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     coverImg = nonVideos[0]
   }
 
-  const imageUrl = coverImg?.url || null
+  let imageUrl = coverImg?.url || null
+
+  if (imageUrl) {
+    if (!imageUrl.startsWith('http')) {
+      const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://www.tamimparfume.my.id').replace(/\/$/, '')
+      imageUrl = `${baseUrl}${imageUrl.startsWith('/') ? '' : '/'}${imageUrl}`
+    }
+  } else {
+    // Fallback if no cover image is found
+    imageUrl = 'https://www.tamimparfume.my.id/og-image.png'
+  }
 
   return {
     title: product.name,

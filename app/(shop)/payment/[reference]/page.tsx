@@ -352,8 +352,8 @@ export default function PaymentPage() {
                   <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>
                     Nomor Virtual Account
                   </p>
-                  <div style={styles.codeBox}>
-                    <span style={{
+                  <div style={styles.codeBox} className="code-box-container">
+                    <span className="code-text" style={{
                       fontSize: '24px', fontWeight: 800, fontFamily: 'monospace',
                       letterSpacing: '3px', color: 'var(--color-text)',
                     }}>
@@ -363,8 +363,9 @@ export default function PaymentPage() {
                       onClick={() => copyToClipboard(payCode, 'code')}
                       style={{
                         ...styles.copyBtnLarge,
-                        background: copied ? 'linear-gradient(135deg,#10b981,#059669)' : 'linear-gradient(135deg, var(--color-primary), var(--color-primary-dark, #6d28d9))',
+                        background: copied ? '#02c41fff' : '#111111',
                       }}
+                      className="copy-btn-large"
                     >
                       {copied ? <Check size={16} /> : <Copy size={16} />}
                       {copied ? 'Disalin!' : 'Salin'}
@@ -538,10 +539,31 @@ export default function PaymentPage() {
 
         </div>
       </main>
-<style jsx>{`
+      <style jsx>{`
         @keyframes blink {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.4; }
+        }
+        @media (max-width: 480px) {
+          .code-box-container {
+            flex-direction: column !important;
+            align-items: center !important;
+            gap: 16px !important;
+            padding: 20px 14px !important;
+            text-align: center;
+          }
+          .code-text {
+            font-size: 20px !important;
+            letter-spacing: 2px !important;
+            word-break: break-all;
+            display: block;
+            width: 100%;
+          }
+          .copy-btn-large {
+            width: 100% !important;
+            justify-content: center;
+            padding: 12px !important;
+          }
         }
       `}</style>
       <style jsx global>{`
@@ -699,7 +721,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '10px 20px', borderRadius: '10px', border: 'none',
     color: '#fff', fontSize: '13px', fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.2s',
-    boxShadow: '0 4px 12px rgba(124,58,237,0.25)',
+    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
     whiteSpace: 'nowrap' as const,
   },
   qrFrame: {

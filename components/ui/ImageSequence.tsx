@@ -154,6 +154,14 @@ export default function ImageSequence() {
         cancelAnimationFrame(raf.current)
         raf.current = requestAnimationFrame(() => show(idx))
       }
+
+      // Elegant fade out for the scroll overlay
+      const overlay = document.getElementById('hero-scroll-overlay')
+      if (overlay) {
+        const opacity = Math.max(0, 1 - p * 10)
+        overlay.style.opacity = String(opacity)
+        overlay.style.visibility = opacity === 0 ? 'hidden' : 'visible'
+      }
     }
 
     window.addEventListener('scroll', onScroll, { passive: true })
@@ -199,12 +207,116 @@ export default function ImageSequence() {
           pointer-events: none;
         }
 
+        /* Luxury Scroll Overlay & Monogram Logo styling */
+        .hero-scroll-overlay {
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          z-index: 10;
+          pointer-events: none;
+          text-align: center;
+          transition: opacity 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94), visibility 0.5s;
+        }
+        .hero-scroll-logo {
+          font-family: var(--font-playfair), serif;
+          font-size: 1.25rem;
+          font-weight: 500;
+          letter-spacing: 0.35em;
+          color: rgba(255, 255, 255, 0.95);
+          text-transform: uppercase;
+          margin-bottom: 6px;
+          text-shadow: 0 4px 12px rgba(0,0,0,0.6);
+          opacity: 0.85;
+          margin-left: 0.35em; /* Optical center alignment */
+        }
+        .hero-scroll-text {
+          font-family: var(--font-montserrat), sans-serif;
+          font-size: 9px;
+          font-weight: 500;
+          letter-spacing: 0.4em;
+          color: rgba(255, 255, 255, 0.45);
+          text-transform: uppercase;
+          text-shadow: 0 2px 8px rgba(0,0,0,0.4);
+          margin-left: 0.4em; /* Optical center alignment */
+        }
+        .scroll-arrow-container {
+          margin-top: 18px;
+          display: inline-flex;
+          justify-content: center;
+          align-items: center;
+          position: relative;
+        }
+        .scroll-arrow-svg {
+          width: 18px;
+          height: 36px;
+          color: rgba(255, 255, 255, 0.7);
+          filter: drop-shadow(0 2px 8px rgba(0,0,0,0.4));
+          animation: scroll-arrow-slide 2.2s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+        }
+        @keyframes scroll-arrow-slide {
+          0% {
+            transform: translateY(-8px);
+            opacity: 0;
+          }
+          30% {
+            opacity: 0.85;
+          }
+          60% {
+            transform: translateY(8px);
+            opacity: 0.85;
+          }
+          100% {
+            transform: translateY(16px);
+            opacity: 0;
+          }
+        }
+
         @media (max-width: 768px) {
           .seq-container {
             height: 300vh;
           }
           .seq-sticky {
             height: 80vh;
+          }
+          .hero-scroll-overlay {
+            top: 50%;
+            bottom: auto;
+            transform: translate(-50%, -50%);
+          }
+          .hero-scroll-logo {
+            font-size: 1.05rem;
+            letter-spacing: 0.3em;
+            margin-left: 0.3em;
+          }
+          .hero-scroll-text {
+            font-size: 8px;
+            letter-spacing: 0.3em;
+            margin-left: 0.3em;
+          }
+          .scroll-arrow-svg {
+            width: 14px;
+            height: 28px;
+          }
+          @keyframes scroll-arrow-slide {
+            0% {
+              transform: translateY(-6px);
+              opacity: 0;
+            }
+            30% {
+              opacity: 0.85;
+            }
+            60% {
+              transform: translateY(6px);
+              opacity: 0.85;
+            }
+            100% {
+              transform: translateY(12px);
+              opacity: 0;
+            }
           }
         }
       `}</style>
@@ -219,6 +331,19 @@ export default function ImageSequence() {
             className="seq-img"
           />
           <div className="seq-gradient" />
+
+          {/* Luxury scroll overlay with minimalist logo & micro-animation */}
+          <div id="hero-scroll-overlay" className="hero-scroll-overlay">
+            <div className="hero-scroll-logo">
+              TAMIM PARFUME
+            </div>
+            <div className="hero-scroll-text">SCROLL TO EXPLORE</div>
+            <div className="scroll-arrow-container">
+              <svg width="18" height="36" viewBox="0 0 18 36" fill="none" stroke="currentColor" className="scroll-arrow-svg">
+                <path d="M9 2v32M2 27l7 7 7-7" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
+          </div>
         </div>
       </div>
     </>

@@ -21,7 +21,7 @@ const playfair = Playfair_Display({
 
 export const metadata: Metadata = {
   metadataBase: new URL(
-    process.env.NEXT_PUBLIC_APP_URL || "https://tamimparfume.my.id"
+    process.env.NEXT_PUBLIC_APP_URL || "https://www.tamimparfume.my.id"
   ),
   title: {
     default: "TAMIM PARFUME — Toko Parfum Premium Online",
