@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { MessageCircle, Send, Loader2, ArrowLeft, Search, Package, ShoppingBag, Truck, ChevronRight } from 'lucide-react'
+import { MessageCircle, Send, Loader2, ArrowLeft, Search, Package, ShoppingBag, Truck, ChevronRight, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { useSearchParams } from 'next/navigation'
+import toast from 'react-hot-toast'
 
 interface Conversation {
   id: string
@@ -229,6 +230,25 @@ export default function AdminChatPage() {
     finally { setSending(false) }
   }
 
+  const handleDeleteConversation = async (convId: string) => {
+    if (!confirm('Yakin ingin menghapus percakapan ini dari list chat? Semua pesan obrolan akan ikut terhapus permanen.')) return
+    try {
+      const res = await fetch(`/api/chat/${convId}`, { method: 'DELETE' })
+      const json = await res.json()
+      if (json.success) {
+        toast.success('Percakapan berhasil dihapus')
+        setConversations(prev => prev.filter(c => c.id !== convId))
+        if (selectedConvRef.current === convId) {
+          setSelectedConv(null)
+        }
+      } else {
+        toast.error(json.error || 'Gagal menghapus percakapan')
+      }
+    } catch {
+      toast.error('Gagal menghapus percakapan')
+    }
+  }
+
   const filteredConvs = conversations.filter((c) => {
     if (!searchQuery) return true
     const q = searchQuery.toLowerCase()
@@ -278,23 +298,22 @@ export default function AdminChatPage() {
             filteredConvs.map((conv) => {
               const isUserOnline = onlineUsers.has(conv.user_id)
               return (
-                <button
+                <div
                   key={conv.id}
-                  onClick={() => setSelectedConv(conv)}
+                  className="chat-list-item"
                   style={{
+                    position: 'relative',
                     width: '100%',
                     padding: '14px 16px',
                     borderBottom: '1px solid var(--color-border-light)',
                     background: selectedConv?.id === conv.id ? 'var(--color-bg-secondary)' : 'transparent',
                     cursor: 'pointer',
-                    textAlign: 'left',
                     display: 'flex',
                     gap: '10px',
                     alignItems: 'center',
-                    border: 'none',
-                    fontFamily: 'inherit',
                     transition: 'background 0.15s',
                   }}
+                  onClick={() => setSelectedConv(conv)}
                 >
                   <div style={{ position: 'relative', flexShrink: 0 }}>
                     <UserAvatar user={conv.user} size={40} />
@@ -302,7 +321,7 @@ export default function AdminChatPage() {
                       <OnlineIndicator isOnline={isUserOnline} size={12} />
                     </span>
                   </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ flex: 1, minWidth: 0, paddingRight: '20px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
                       <span style={{ fontWeight: 600, fontSize: '13px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {conv.user?.full_name || conv.user?.email || 'Unknown'}
@@ -312,7 +331,7 @@ export default function AdminChatPage() {
                       </span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '180px' }}>
+                      <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '160px' }}>
                         {conv.last_message?.message || conv.subject || 'Tidak ada pesan'}
                       </span>
                       {conv.unread_count > 0 && (
@@ -322,7 +341,37 @@ export default function AdminChatPage() {
                       )}
                     </div>
                   </div>
-                </button>
+
+                  {/* Delete Conversation Button */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleDeleteConversation(conv.id)
+                    }}
+                    style={{
+                      position: 'absolute',
+                      right: '12px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: '#ef4444',
+                      padding: '6px',
+                      borderRadius: 'var(--radius-sm)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      zIndex: 5,
+                      opacity: 0,
+                      transition: 'opacity 0.2s ease, background 0.2s',
+                    }}
+                    className="delete-conv-btn"
+                    title="Hapus percakapan"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
               )
             })
           )}
@@ -498,6 +547,18 @@ export default function AdminChatPage() {
           </div>
         </div>
       )}
+      <style jsx global>{`
+        .chat-list-item:hover {
+          background: var(--color-bg-secondary) !important;
+        }
+        .chat-list-item:hover .delete-conv-btn {
+          opacity: 0.65 !important;
+        }
+        .delete-conv-btn:hover {
+          opacity: 1 !important;
+          background: rgba(239, 68, 68, 0.08) !important;
+        }
+      `}</style>
     </div>
   )
 }

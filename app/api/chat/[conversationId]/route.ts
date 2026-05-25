@@ -122,3 +122,52 @@ export async function POST(
 
   return NextResponse.json({ data })
 }
+
+// DELETE a conversation
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ conversationId: string }> }
+) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  // Check if admin
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  const isAdmin = profile?.role === 'admin'
+  if (!isAdmin) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+  }
+
+  const { conversationId } = await params
+
+  // Use service role admin client to bypass any RLS delete restrictions
+  const { createAdminClient } = await import('@/lib/supabase/admin')
+  const supabaseAdmin = createAdminClient()
+
+  // Delete messages first to satisfy foreign key constraints if cascade is not set
+  await supabaseAdmin
+    .from('chat_messages')
+    .delete()
+    .eq('conversation_id', conversationId)
+
+  // Delete conversation
+  const { error } = await supabaseAdmin
+    .from('chat_conversations')
+    .delete()
+    .eq('id', conversationId)
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  return NextResponse.json({ success: true })
+}

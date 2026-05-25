@@ -82,13 +82,20 @@ export async function POST(request: NextRequest) {
   const isAdmin = profile?.role === 'admin'
   const isCustomer = !isAdmin
 
+  // If the creator is an admin, we use the service role admin client to bypass RLS constraints
+  let dbClient = supabase
+  if (isAdmin) {
+    const { createAdminClient } = await import('@/lib/supabase/admin')
+    dbClient = createAdminClient()
+  }
+
   const { subject, message, message_type, metadata, user_id: targetUserId } = await request.json()
 
   const userIdToUse = (isAdmin && targetUserId) ? targetUserId : user.id
   const senderName = isCustomer ? (profile?.full_name || user.email || 'Pelanggan') : 'Admin'
 
   // Check if user already has an open conversation
-  const { data: existing } = await supabase
+  const { data: existing } = await dbClient
     .from('chat_conversations')
     .select('id')
     .eq('user_id', userIdToUse)
@@ -106,8 +113,8 @@ export async function POST(request: NextRequest) {
       }
       if (message_type && message_type !== 'text') msgPayload.message_type = message_type
       if (metadata) msgPayload.metadata = metadata
-      await supabase.from('chat_messages').insert(msgPayload)
-      await supabase
+      await dbClient.from('chat_messages').insert(msgPayload)
+      await dbClient
         .from('chat_conversations')
         .update({ last_message_at: new Date().toISOString() })
         .eq('id', existing.id)
@@ -126,7 +133,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Create new conversation
-  const { data: conv, error } = await supabase
+  const { data: conv, error } = await dbClient
     .from('chat_conversations')
     .insert({
       user_id: userIdToUse,
@@ -136,6 +143,7 @@ export async function POST(request: NextRequest) {
     .single()
 
   if (error) {
+    console.error('Failed to create new conversation:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
@@ -148,7 +156,7 @@ export async function POST(request: NextRequest) {
     }
     if (message_type && message_type !== 'text') msgPayload.message_type = message_type
     if (metadata) msgPayload.metadata = metadata
-    await supabase.from('chat_messages').insert(msgPayload)
+    await dbClient.from('chat_messages').insert(msgPayload)
 
     // Send Telegram notification if sent by customer
     if (isCustomer) {
