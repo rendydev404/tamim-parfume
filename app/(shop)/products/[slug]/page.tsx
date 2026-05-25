@@ -19,15 +19,31 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const supabase = await createClient()
   const { data: product } = await supabase
     .from('products')
-    .select('name, short_description')
+    .select('name, short_description, images:product_images(url, is_primary)')
     .eq('slug', slug)
     .single()
 
   if (!product) return { title: 'Produk Tidak Ditemukan' }
 
+  const imgs = (product.images as { url: string; is_primary: boolean }[]) || []
+  const primaryImg = imgs.find(i => i.is_primary) || imgs[0]
+  const imageUrl = primaryImg?.url || null
+
   return {
     title: product.name,
     description: product.short_description || `Beli ${product.name} di TAMIM PARFUME`,
+    openGraph: {
+      title: product.name,
+      description: product.short_description || `Beli ${product.name} di TAMIM PARFUME`,
+      images: imageUrl ? [{ url: imageUrl, width: 800, height: 800, alt: product.name }] : [],
+      type: 'website',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: product.name,
+      description: product.short_description || `Beli ${product.name} di TAMIM PARFUME`,
+      images: imageUrl ? [imageUrl] : [],
+    },
   }
 }
 

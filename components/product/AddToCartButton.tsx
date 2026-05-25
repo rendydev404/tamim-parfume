@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { ShoppingBag, Minus, Plus, Check, Zap } from 'lucide-react'
+import { ShoppingBag, Minus, Plus, Check, Zap, Share2 } from 'lucide-react'
 import { useCartStore } from '@/stores/cart-store'
 import type { ProductVariant } from '@/lib/types'
 import toast from 'react-hot-toast'
@@ -150,6 +150,58 @@ export default function AddToCartButton({ product, selectedVariant, hasVariants 
         >
           <Zap size={18} />
          Checkout
+        </button>
+      </div>
+
+      {/* Share Button */}
+      <div style={{ marginTop: '4px' }}>
+        <button
+          className="btn btn-secondary btn-full"
+          onClick={async () => {
+            const shareTitle = `${product.name} | TAMIM PARFUME`
+            const shareText = `✨ *${product.name}* ✨\nUpgrade Your Confidence! Dapatkan parfum premium berkualitas tinggi tahan lama hanya di TAMIM PARFUME.\n\n`
+            const shareUrl = window.location.href
+
+            if (navigator.share) {
+              try {
+                await navigator.share({
+                  title: shareTitle,
+                  text: shareText,
+                  url: shareUrl,
+                })
+                toast.success('Berhasil membagikan!')
+                return
+              } catch (err) {
+                // Silently fallback if cancelled or failed
+              }
+            }
+
+            // Fallboard copy fallback
+            try {
+              await navigator.clipboard.writeText(`${shareText}${shareUrl}`)
+              toast.success('Link & deskripsi produk disalin ke clipboard!')
+            } catch {
+              toast.error('Gagal menyalin link produk')
+            }
+          }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px',
+            width: '100%',
+            padding: '12px',
+            border: '1.5px solid var(--color-border)',
+            borderRadius: 'var(--radius-md)',
+            background: 'var(--color-bg-secondary)',
+            color: 'var(--color-text-secondary)',
+            cursor: 'pointer',
+            fontSize: '13px',
+            fontWeight: 600,
+            transition: 'all var(--transition-fast)',
+          }}
+        >
+          <Share2 size={16} /> Bagikan Produk
         </button>
       </div>
     </div>
