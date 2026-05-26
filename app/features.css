@@ -312,6 +312,17 @@
   }
 }
 
+/* When Akun (rightmost) nav is active, raise the FAB above the magic indicator */
+.chat-widget__fab--raised {
+  bottom: 140px;
+}
+
+@media (min-width: 768px) {
+  .chat-widget__fab--raised {
+    bottom: 24px;
+  }
+}
+
 .chat-widget {
   position: fixed;
   bottom: 80px;
@@ -329,6 +340,7 @@
   flex-direction: column;
   overflow: hidden;
   animation: chatSlideUp 0.25s ease-out;
+  transition: bottom 0.35s ease, max-height 0.35s ease;
 }
 
 @keyframes chatSlideUp {
@@ -340,6 +352,19 @@
   .chat-widget {
     bottom: 24px;
     right: 24px;
+  }
+}
+
+/* Raised chat window when Akun nav is active */
+.chat-widget--raised {
+  bottom: 140px;
+  max-height: calc(100vh - 180px);
+}
+
+@media (min-width: 768px) {
+  .chat-widget--raised {
+    bottom: 24px;
+    max-height: calc(100vh - 120px);
   }
 }
 

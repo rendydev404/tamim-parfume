@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { usePathname } from 'next/navigation'
 import { MessageCircle, X, Send, Loader2, Minus, Package, ShoppingBag, HelpCircle, Truck, ChevronRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { RealtimeChannel } from '@supabase/supabase-js'
@@ -58,6 +59,7 @@ function formatRp(amount: number): string {
 }
 
 export default function ChatWidget() {
+  const pathname = usePathname()
   const [isOpen, setIsOpen] = useState(false)
   const [isMinimized, setIsMinimized] = useState(false)
   const [messages, setMessages] = useState<Message[]>([])
@@ -443,11 +445,18 @@ export default function ChatWidget() {
     return actions
   }
 
+  // Check if the Akun nav item is active (rightmost position — overlaps with FAB)
+  const isAkunActive = pathname.startsWith('/dashboard')
+
   return (
     <>
       {/* Floating Button */}
       {!isOpen && (
-        <button onClick={handleOpen} className="chat-widget__fab" aria-label="Buka Chat">
+        <button
+          onClick={handleOpen}
+          className={`chat-widget__fab ${isAkunActive ? 'chat-widget__fab--raised' : ''}`}
+          aria-label="Buka Chat"
+        >
           <MessageCircle size={24} />
           {unreadCount > 0 && (
             <span className="chat-widget__fab-badge">{unreadCount}</span>
@@ -457,7 +466,7 @@ export default function ChatWidget() {
 
       {/* Chat Window */}
       {isOpen && (
-        <div className={`chat-widget ${isMinimized ? 'chat-widget--minimized' : ''}`}>
+        <div className={`chat-widget ${isMinimized ? 'chat-widget--minimized' : ''} ${isAkunActive ? 'chat-widget--raised' : ''}`}>
           {/* Header */}
           <div className="chat-widget__header" onClick={() => isMinimized && setIsMinimized(false)}>
             <div className="chat-widget__header-info">

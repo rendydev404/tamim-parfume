@@ -1,4 +1,3 @@
-
 'use client'
 
 import Link from 'next/link'
@@ -55,7 +54,6 @@ export default function MobileNav() {
   }, [])
 
   const itemCount = navItems.length
-  // Each item takes 1/itemCount of the width, indicator center is at the middle of active item
   const indicatorPercent = ((activeIndex + 0.5) / itemCount) * 100
 
   return (
@@ -68,34 +66,16 @@ export default function MobileNav() {
         pointerEvents: isHiddenOnHome ? 'none' : 'auto',
       }}
     >
-      {/* SVG curve background */}
-      <div className="magic-nav__bg">
-        <svg
-          viewBox="0 0 400 80"
-          preserveAspectRatio="none"
-          xmlns="http://www.w3.org/2000/svg"
-          className="magic-nav__svg"
-        >
-          <defs>
-            <filter id="navShadow" x="-10%" y="-30%" width="120%" height="160%">
-              <feDropShadow dx="0" dy="-3" stdDeviation="4" floodColor="rgba(0,0,0,0.08)" />
-            </filter>
-          </defs>
-          <path
-            d={generateCurvePath(indicatorPercent, 400, 80)}
-            fill="rgba(255, 255, 255, 0.97)"
-            filter="url(#navShadow)"
-            className="magic-nav__curve-path"
-          />
-        </svg>
-      </div>
+      {/* White bar with CSS mask cutout */}
+      <div
+        className="magic-nav__bar"
+        style={{ '--indicator-x': `${indicatorPercent}%` } as React.CSSProperties}
+      />
 
       {/* Floating indicator circle */}
       <div
         className="magic-nav__indicator"
-        style={{
-          left: `${indicatorPercent}%`,
-        }}
+        style={{ left: `${indicatorPercent}%` }}
       >
         <div className="magic-nav__indicator-circle">
           {(() => {
@@ -142,33 +122,4 @@ export default function MobileNav() {
       </div>
     </nav>
   )
-}
-
-/**
- * Generates an SVG path with a smooth concave curve (cutout) at the given horizontal position.
- */
-function generateCurvePath(
-  centerPercent: number,
-  width: number,
-  height: number
-): string {
-  const cx = (centerPercent / 100) * width
-  const curveWidth = 70 // total width of the concave dip
-  const curveDepth = 32 // how deep the curve dips upward
-  const topY = 16 // top edge of the nav bar
-
-  const left = cx - curveWidth / 2
-  const right = cx + curveWidth / 2
-
-  // Build path: start top-left, go to curve start, curve down (concave), continue to top-right, then down and close
-  return [
-    `M 0 ${topY}`,
-    `L ${left} ${topY}`,
-    `C ${left + 14} ${topY}, ${cx - 22} ${topY - curveDepth}, ${cx} ${topY - curveDepth}`,
-    `C ${cx + 22} ${topY - curveDepth}, ${right - 14} ${topY}, ${right} ${topY}`,
-    `L ${width} ${topY}`,
-    `L ${width} ${height}`,
-    `L 0 ${height}`,
-    `Z`,
-  ].join(' ')
 }
