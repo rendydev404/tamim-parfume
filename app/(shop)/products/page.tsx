@@ -82,14 +82,15 @@ export default async function ProductsPage({ searchParams }: Props) {
   // Pagination
   query = query.range(offset, offset + perPage - 1)
 
-  const { data: products, count } = await query
-  const totalPages = Math.ceil((count || 0) / perPage)
+  // Fetch products and categories concurrently
+  const [productsRes, categoriesRes] = await Promise.all([
+    query,
+    supabase.from('categories').select('*').order('sort_order'),
+  ])
 
-  // Get categories for filter
-  const { data: categories } = await supabase
-    .from('categories')
-    .select('*')
-    .order('sort_order')
+  const { data: products, count } = productsRes
+  const categories = categoriesRes.data
+  const totalPages = Math.ceil((count || 0) / perPage)
 
   return (
     <div className="container" style={{ paddingTop: '24px', paddingBottom: '24px' }}>

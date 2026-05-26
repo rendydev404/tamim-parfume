@@ -20,9 +20,22 @@ export default function MobileNav() {
   const [isHiddenOnHome, setIsHiddenOnHome] = useState(false)
 
   const activeIndex = useMemo(() => {
-    const idx = navItems.findIndex((item) =>
-      item.href === '/' ? pathname === '/' : pathname.startsWith(item.href)
-    )
+    const idx = navItems.findIndex((item) => {
+      if (item.href === '/') {
+        return pathname === '/'
+      }
+      if (item.href === '/dashboard') {
+        return (
+          pathname.startsWith('/dashboard') ||
+          pathname.startsWith('/orders') ||
+          pathname.startsWith('/profile')
+        )
+      }
+      if (item.href === '/products') {
+        return pathname.startsWith('/products') || pathname.startsWith('/search')
+      }
+      return pathname.startsWith(item.href)
+    })
     return idx >= 0 ? idx : 0
   }, [pathname])
 

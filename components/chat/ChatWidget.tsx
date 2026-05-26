@@ -446,7 +446,10 @@ export default function ChatWidget() {
   }
 
   // Check if the Akun nav item is active (rightmost position — overlaps with FAB)
-  const isAkunActive = pathname.startsWith('/dashboard')
+  const isAkunActive =
+    pathname.startsWith('/dashboard') ||
+    pathname.startsWith('/orders') ||
+    pathname.startsWith('/profile')
 
   return (
     <>

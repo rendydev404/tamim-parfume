@@ -25,12 +25,26 @@ export async function updateSession(request: NextRequest) {
     }
   )
 
-  // Refresh the auth token
+  const pathname = request.nextUrl.pathname
+
+  const isProtectedRoute =
+    pathname.startsWith('/admin') ||
+    pathname.startsWith('/dashboard') ||
+    pathname.startsWith('/orders') ||
+    pathname.startsWith('/profile') ||
+    pathname.startsWith('/checkout')
+
+  const isAuthRoute = pathname === '/login' || pathname === '/register'
+
+  // If it's a public route, skip the blocking getUser() network call for maximum performance!
+  if (!isProtectedRoute && !isAuthRoute) {
+    return supabaseResponse
+  }
+
+  // Refresh the auth token only on auth/protected pages
   const {
     data: { user },
   } = await supabase.auth.getUser()
-
-  const pathname = request.nextUrl.pathname
 
   // Protect admin routes
   if (pathname.startsWith('/admin')) {

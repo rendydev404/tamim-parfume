@@ -40,12 +40,14 @@ async function getNewProducts() {
 
 export default async function HomePage() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
 
-  const [featured, newest] = await Promise.all([
+  const [featured, newest, authRes] = await Promise.all([
     getFeaturedProducts(),
     getNewProducts(),
+    supabase.auth.getUser(),
   ])
+
+  const user = authRes.data.user
 
   return (
     <>
