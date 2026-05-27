@@ -3,7 +3,8 @@ import { ArrowRight, Sparkles, Shield, Truck, User, Heart, Moon, Stars } from 'l
 import { createClient } from '@/lib/supabase/server'
 import ProductCard from '@/components/product/ProductCard'
 import PromoBanner from '@/components/layout/PromoBanner'
-import ImageSequence from '@/components/ui/ImageSequence'
+import HeroSlider from '@/components/ui/HeroSlider'
+import type { HeroSlide } from '@/components/ui/HeroSlider'
 
 export const revalidate = 60 // ISR: revalidate every 60s
 
@@ -38,13 +39,36 @@ async function getNewProducts() {
   }
 }
 
+async function getHeroSlides(): Promise<HeroSlide[]> {
+  try {
+    const supabase = await createClient()
+    const { data, error } = await supabase
+      .from('hero_slides')
+      .select('*')
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true })
+
+    if (error) {
+      // Table might not exist yet
+      if (error.message?.includes('does not exist')) return []
+      console.error('Error fetching hero slides:', error)
+      return []
+    }
+
+    return (data || []) as HeroSlide[]
+  } catch {
+    return []
+  }
+}
+
 export default async function HomePage() {
   const supabase = await createClient()
 
-  const [featured, newest, authRes] = await Promise.all([
+  const [featured, newest, authRes, heroSlides] = await Promise.all([
     getFeaturedProducts(),
     getNewProducts(),
     supabase.auth.getUser(),
+    getHeroSlides(),
   ])
 
   const user = authRes.data.user
@@ -54,8 +78,8 @@ export default async function HomePage() {
       {/* Promo Banner Top */}
       <PromoBanner />
 
-      {/* Hero Image Sequence */}
-      <ImageSequence />
+      {/* Hero Product Slider */}
+      <HeroSlider slides={heroSlides} />
 
       {/* Original Hero converted to Promo Banner Section */}
       <section style={{ 

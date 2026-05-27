@@ -33,7 +33,7 @@ const navItems = [
   { href: '/admin/chat', icon: MessageCircle, label: 'Chat Pelanggan' },
   { href: '/admin/coupons', icon: Tag, label: 'Kupon' },
   { href: '/admin/promos', icon: Megaphone, label: 'Promo' },
-  { href: '/admin/hero-sequence', icon: Film, label: 'Hero Sequence' },
+  { href: '/admin/hero-slider', icon: Film, label: 'Hero Slider' },
   { href: '/admin/reports', icon: BarChart3, label: 'Laporan' },
   { href: '/admin/settings', icon: Settings, label: 'Pengaturan Toko' },
 ]
