@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { ShoppingBag, Minus, Plus, Check, Zap, Share2 } from 'lucide-react'
+import { ShoppingBag, Minus, Plus, Check, Zap, Share2, CreditCard } from 'lucide-react'
 import { useCartStore } from '@/stores/cart-store'
 import type { ProductVariant } from '@/lib/types'
 import toast from 'react-hot-toast'
@@ -79,7 +79,7 @@ export default function AddToCartButton({ product, selectedVariant, hasVariants 
 
   if (effectiveStock <= 0 && (!hasVariants || selectedVariant)) {
     return (
-      <button className="btn btn-primary btn-full btn-lg" disabled>
+      <button className="btn btn-primary btn-full btn-lg" disabled style={{ borderRadius: '0px' }}>
         Stok Habis
       </button>
     )
@@ -129,7 +129,7 @@ export default function AddToCartButton({ product, selectedVariant, hasVariants 
           className={`btn btn-lg ${added ? 'btn-accent' : 'btn-primary'}`}
           onClick={handleAdd}
           disabled={added}
-          style={{ flex: 1 }}
+          style={{ flex: 1, borderRadius: '0px' }}
         >
           {added ? (
             <>
@@ -146,9 +146,9 @@ export default function AddToCartButton({ product, selectedVariant, hasVariants 
         <button
           className="btn btn-accent btn-lg"
           onClick={handleBuyNow}
-          style={{ flex: 1 }}
+          style={{ flex: 1, borderRadius: '0px' }}
         >
-          <Zap size={18} />
+          <CreditCard size={18} />
          Checkout
         </button>
       </div>

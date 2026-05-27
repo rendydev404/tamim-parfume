@@ -27,6 +27,7 @@ interface HeroSlide {
 }
 
 interface SlideFormData {
+  product_id: string | null
   title: string
   subtitle: string
   description: string
@@ -40,6 +41,7 @@ interface SlideFormData {
 }
 
 const defaultForm: SlideFormData = {
+  product_id: null,
   title: '',
   subtitle: '',
   description: '',
@@ -60,9 +62,16 @@ export default function AdminHeroSliderPage() {
   const [form, setForm] = useState<SlideFormData>(defaultForm)
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [products, setProducts] = useState<any[]>([])
+  const [loadingProducts, setLoadingProducts] = useState(false)
+  const [productSearch, setProductSearch] = useState('')
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => { loadSlides() }, [])
+  useEffect(() => {
+    loadSlides()
+    loadProducts()
+  }, [])
 
   const loadSlides = async () => {
     try {
@@ -73,6 +82,21 @@ export default function AdminHeroSliderPage() {
       toast.error('Gagal memuat data slides')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadProducts = async () => {
+    setLoadingProducts(true)
+    try {
+      const res = await fetch('/api/admin/products')
+      const json = await res.json()
+      if (json.success) {
+        setProducts(json.data || [])
+      }
+    } catch (e) {
+      console.error('Gagal memuat produk:', e)
+    } finally {
+      setLoadingProducts(false)
     }
   }
 
@@ -87,6 +111,7 @@ export default function AdminHeroSliderPage() {
   const openEditForm = (slide: HeroSlide) => {
     setEditingSlide(slide)
     setForm({
+      product_id: slide.product_id || null,
       title: slide.title,
       subtitle: slide.subtitle || '',
       description: slide.description || '',
@@ -106,6 +131,8 @@ export default function AdminHeroSliderPage() {
     setShowForm(false)
     setEditingSlide(null)
     setForm(defaultForm)
+    setProductSearch('')
+    setIsDropdownOpen(false)
   }
 
   // Upload image
@@ -340,6 +367,117 @@ export default function AdminHeroSliderPage() {
           border-radius: 50%;
           border: 1px solid rgba(128,128,128,0.3);
         }
+
+        /* Searchable Product Dropdown */
+        .hs-dropdown {
+          position: relative;
+          width: 100%;
+        }
+        .hs-dropdown-trigger {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          width: 100%;
+          padding: 10px 14px;
+          background: var(--color-bg-secondary);
+          border: 1px solid var(--color-border);
+          border-radius: var(--radius-md);
+          cursor: pointer;
+          font-size: 14px;
+          transition: all 0.2s;
+          color: var(--color-text);
+        }
+        .hs-dropdown-trigger:hover {
+          border-color: var(--color-border-light);
+        }
+        .hs-dropdown-menu {
+          position: absolute;
+          top: 105%;
+          left: 0;
+          right: 0;
+          background: var(--color-bg);
+          border: 1px solid var(--color-border);
+          border-radius: var(--radius-md);
+          box-shadow: 0 10px 25px rgba(0, 0, 0, 0.45);
+          z-index: 50;
+          max-height: 280px;
+          overflow-y: auto;
+          padding: 8px;
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+        .hs-dropdown-search-wrapper {
+          position: sticky;
+          top: 0;
+          background: var(--color-bg);
+          padding: 4px 4px 8px 4px;
+          border-bottom: 1px solid var(--color-border-light);
+          z-index: 51;
+        }
+        .hs-dropdown-search-input {
+          width: 100%;
+          padding: 8px 12px;
+          background: var(--color-bg-secondary);
+          border: 1px solid var(--color-border);
+          border-radius: var(--radius-sm);
+          font-size: 13px;
+          color: var(--color-text);
+        }
+        .hs-dropdown-search-input:focus {
+          outline: none;
+          border-color: var(--color-accent);
+        }
+        .hs-dropdown-item {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 8px 12px;
+          border-radius: var(--radius-sm);
+          cursor: pointer;
+          transition: all 0.15s;
+          font-size: 13px;
+          color: var(--color-text);
+        }
+        .hs-dropdown-item:hover {
+          background: var(--color-bg-secondary);
+        }
+        .hs-dropdown-item--selected {
+          background: rgba(212, 175, 55, 0.15);
+          border-left: 3px solid var(--color-accent);
+        }
+        .hs-dropdown-item-thumb {
+          width: 32px;
+          height: 32px;
+          border-radius: var(--radius-sm);
+          background: var(--color-bg-secondary);
+          overflow: hidden;
+          flex-shrink: 0;
+          border: 1px solid var(--color-border-light);
+        }
+        .hs-dropdown-item-thumb img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+        .hs-dropdown-item-info {
+          flex: 1;
+          min-width: 0;
+          text-align: left;
+        }
+        .hs-dropdown-item-name {
+          font-weight: 500;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          color: var(--color-text);
+        }
+        .hs-dropdown-item-meta {
+          font-size: 11px;
+          color: var(--color-text-muted);
+          display: flex;
+          justify-content: space-between;
+        }
       `}</style>
 
       {/* Header */}
@@ -404,7 +542,7 @@ export default function AdminHeroSliderPage() {
                   </div>
                 )}
                 <div className="hs-preview__text">
-                  <p style={{ color: form.text_color, fontSize: '20px', fontWeight: 700, fontFamily: 'var(--font-playfair), serif' }}>
+                  <p style={{ color: form.text_color, fontSize: '20px', fontWeight: 700 }}>
                     {form.title || 'Nama Produk'}
                   </p>
                   {form.subtitle && (
@@ -416,7 +554,7 @@ export default function AdminHeroSliderPage() {
                     <div style={{
                       display: 'inline-block',
                       padding: '6px 16px',
-                      borderRadius: '20px',
+                      borderRadius: '0px',
                       background: form.accent_color,
                       color: form.bg_color_from,
                       fontSize: '11px',
@@ -524,15 +662,150 @@ export default function AdminHeroSliderPage() {
                   />
                 </div>
 
-                {/* CTA Link */}
+                {/* Searchable Product Dropdown for CTA Link */}
+                <div className="input-group" style={{ gridColumn: '1 / -1', position: 'relative' }}>
+                  <label className="input-label">Tautkan ke Produk (Dropdown & Cari) *</label>
+                  <div className="hs-dropdown">
+                    <div 
+                      className="hs-dropdown-trigger"
+                      onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                    >
+                      {form.product_id ? (
+                        (() => {
+                          const prod = products.find(p => p.id === form.product_id)
+                          if (prod) {
+                            return (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <div className="hs-dropdown-item-thumb" style={{ width: '24px', height: '24px' }}>
+                                  {prod.image_url ? (
+                                    <img src={prod.image_url} alt={prod.name} />
+                                  ) : (
+                                    <span style={{ fontSize: '9px', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--color-text-muted)' }}>N/A</span>
+                                  )}
+                                </div>
+                                <span style={{ fontWeight: 600 }}>{prod.name}</span>
+                                <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>({form.cta_link})</span>
+                              </div>
+                            )
+                          }
+                          return <span>Produk terpilih ({form.cta_link})</span>
+                        })()
+                      ) : form.cta_link ? (
+                        <span>Link Manual: {form.cta_link}</span>
+                      ) : (
+                        <span style={{ color: 'var(--color-text-muted)' }}>Pilih Produk atau Masukkan Link Manual...</span>
+                      )}
+                      <ChevronDown size={16} style={{ opacity: 0.5, transform: isDropdownOpen ? 'rotate(180deg)' : 'none', transition: 'all 0.2s' }} />
+                    </div>
+
+                    {isDropdownOpen && (
+                      <>
+                        {/* Overlay to close dropdown when clicking outside */}
+                        <div 
+                          style={{ position: 'fixed', inset: 0, zIndex: 40, cursor: 'default' }} 
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setIsDropdownOpen(false)
+                          }} 
+                        />
+                        <div className="hs-dropdown-menu" style={{ zIndex: 50 }}>
+                          <div className="hs-dropdown-search-wrapper" onClick={e => e.stopPropagation()}>
+                            <input
+                              type="text"
+                              className="hs-dropdown-search-input"
+                              placeholder="Cari nama atau slug produk..."
+                              value={productSearch}
+                              onChange={e => setProductSearch(e.target.value)}
+                              autoFocus
+                            />
+                          </div>
+
+                          {/* Option for custom/manual link */}
+                          <div 
+                            className={`hs-dropdown-item ${!form.product_id ? 'hs-dropdown-item--selected' : ''}`}
+                            onClick={() => {
+                              setForm(prev => ({ ...prev, product_id: null }))
+                              setIsDropdownOpen(false)
+                            }}
+                          >
+                            <div className="hs-dropdown-item-thumb" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.05)' }}>
+                              <Pencil size={14} style={{ color: 'var(--color-text-muted)' }} />
+                            </div>
+                            <div className="hs-dropdown-item-info">
+                              <div className="hs-dropdown-item-name">Link Manual / Bukan Produk</div>
+                              <div className="hs-dropdown-item-meta">
+                                <span>Tulis tautan sendiri di kotak di bawah</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* List of products */}
+                          {(() => {
+                            const filtered = products.filter(p => 
+                              p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
+                              p.slug.toLowerCase().includes(productSearch.toLowerCase())
+                            )
+
+                            if (filtered.length === 0) {
+                              return (
+                                <div style={{ padding: '12px', textAlign: 'center', fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                                  Produk tidak ditemukan
+                                </div>
+                              )
+                            }
+
+                            return filtered.map((prod) => (
+                              <div
+                                key={prod.id}
+                                className={`hs-dropdown-item ${form.product_id === prod.id ? 'hs-dropdown-item--selected' : ''}`}
+                                onClick={() => {
+                                  setForm(prev => ({ 
+                                    ...prev, 
+                                    product_id: prod.id,
+                                    cta_link: `/products/${prod.slug}`,
+                                    // Pre-fill title if empty
+                                    title: prev.title.trim() ? prev.title : prod.name,
+                                  }))
+                                  setIsDropdownOpen(false)
+                                }}
+                              >
+                                <div className="hs-dropdown-item-thumb">
+                                  {prod.image_url ? (
+                                    <img src={prod.image_url} alt={prod.name} />
+                                  ) : (
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontSize: '10px', color: 'var(--color-text-muted)' }}>No img</div>
+                                  )}
+                                </div>
+                                <div className="hs-dropdown-item-info">
+                                  <div className="hs-dropdown-item-name">{prod.name}</div>
+                                  <div className="hs-dropdown-item-meta">
+                                    <span>/products/{prod.slug}</span>
+                                    <span className={`badge ${prod.is_active ? 'badge-success' : 'badge-muted'}`} style={{ fontSize: '9px', padding: '1px 4px' }}>
+                                      {prod.is_active ? 'Aktif' : 'Nonaktif'}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            ))
+                          })()}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* URL Tautan Input */}
                 <div className="input-group">
-                  <label className="input-label">Link Tombol</label>
+                  <label className="input-label">URL Tautan (CTA Link)</label>
                   <input
                     className="input"
                     value={form.cta_link}
                     onChange={e => setForm(prev => ({ ...prev, cta_link: e.target.value }))}
                     placeholder="/products/nama-produk"
                   />
+                  <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
+                    Ini terisi otomatis jika Anda memilih produk dari dropdown di atas. Anda dapat merubahnya secara manual jika diperlukan.
+                  </p>
                 </div>
 
                 {/* Colors */}

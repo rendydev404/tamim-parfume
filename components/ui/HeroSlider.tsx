@@ -112,7 +112,7 @@ export default function HeroSlider({ slides }: HeroSliderProps) {
     return (
       <section className="hero-slider-empty">
         <div className="hero-slider-empty__content">
-          <h1 style={{ fontFamily: 'var(--font-playfair), serif', fontSize: '1.25rem', letterSpacing: '0.35em', textTransform: 'uppercase' }}>
+          <h1 style={{ fontSize: '1.25rem', letterSpacing: '0.35em', textTransform: 'uppercase' }}>
             TAMIM PARFUME
           </h1>
           <p style={{ fontSize: '10px', letterSpacing: '0.3em', opacity: 0.5, textTransform: 'uppercase', marginTop: '8px' }}>
@@ -189,68 +189,63 @@ export default function HeroSlider({ slides }: HeroSliderProps) {
           position: absolute;
           transition: all 0.8s cubic-bezier(0.25, 1, 0.5, 1);
           cursor: pointer;
-          border-radius: 50%;
-          overflow: hidden;
-          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+          overflow: visible;
+          background: transparent;
         }
 
         .hero-slider__slide-item img {
           display: block;
           width: 100%;
           height: 100%;
-          object-fit: cover;
+          object-fit: contain;
+          filter: drop-shadow(0 15px 25px rgba(0, 0, 0, 0.45));
+          transition: all 0.8s cubic-bezier(0.25, 1, 0.5, 1);
         }
 
-        /* Active slide */
+        /* Active slide - elegant -8deg tilt animation */
         .hero-slider__slide-item--active {
           z-index: 10;
           left: 50%;
           top: 50%;
-          transform: translate(-50%, -50%) scale(1);
+          transform: translate(-50%, -50%) scale(1) rotate(-8deg);
           width: 420px;
           height: 420px;
-          border-radius: 24px;
           filter: brightness(1) blur(0);
           opacity: 1;
-          box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5),
-                      0 0 60px var(--accent-glow, rgba(255, 255, 255, 0.05));
         }
 
-        /* Previous slide - Samping atas kiri (Top-left, circular, cut in half, blurred) */
+        /* Previous slide - Samping atas kiri (Top-left, pulled closer, blurred) */
         .hero-slider__slide-item--prev {
           z-index: 5;
-          left: 0;
-          top: 0;
-          transform: translate(-50%, -50%) scale(0.55);
+          left: 22%;
+          top: 22%;
+          transform: translate(-50%, -50%) scale(0.55) rotate(0deg);
           width: 420px;
           height: 420px;
-          border-radius: 50%;
-          filter: brightness(0.4) blur(8px);
+          filter: brightness(0.45) blur(8px);
           opacity: 0.45;
         }
 
-        /* Next slide - Samping kiri bawah (Bottom-left, circular, cut in half, blurred) */
+        /* Next slide - Samping kiri bawah (Bottom-left, pulled closer, blurred) */
         .hero-slider__slide-item--next {
           z-index: 5;
-          left: 0;
-          top: 100%;
-          transform: translate(-50%, -50%) scale(0.55);
+          left: 22%;
+          top: 78%;
+          transform: translate(-50%, -50%) scale(0.55) rotate(0deg);
           width: 420px;
           height: 420px;
-          border-radius: 50%;
-          filter: brightness(0.4) blur(8px);
+          filter: brightness(0.45) blur(8px);
           opacity: 0.45;
         }
 
         /* Hidden slides */
         .hero-slider__slide-item--hidden {
           z-index: 1;
-          left: 0;
+          left: 22%;
           top: 50%;
-          transform: translate(-50%, -50%) scale(0.2);
+          transform: translate(-50%, -50%) scale(0.2) rotate(0deg);
           width: 420px;
           height: 420px;
-          border-radius: 50%;
           opacity: 0;
           pointer-events: none;
         }
@@ -282,7 +277,7 @@ export default function HeroSlider({ slides }: HeroSliderProps) {
         }
 
         .hero-slider__title {
-          font-family: var(--font-playfair), 'Playfair Display', serif;
+          font-family: inherit;
           font-size: 3rem;
           font-weight: 700;
           line-height: 1.1;
@@ -323,23 +318,25 @@ export default function HeroSlider({ slides }: HeroSliderProps) {
         .hero-slider__cta {
           display: inline-flex;
           align-items: center;
-          gap: 10px;
-          padding: 14px 32px;
-          border-radius: 50px;
-          font-size: 14px;
+          gap: 12px;
+          padding: 14px 36px;
+          border-radius: 0;
+          font-size: 13px;
           font-weight: 600;
-          letter-spacing: 0.05em;
+          letter-spacing: 0.15em;
           text-transform: uppercase;
           text-decoration: none;
-          transition: all 0.3s ease;
-          border: none;
+          transition: all 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+          border: 1px solid rgba(255, 255, 255, 0.15);
           cursor: pointer;
           width: fit-content;
+          box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
         }
 
         .hero-slider__cta:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+          transform: translateY(-3px);
+          box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+          filter: brightness(1.1);
         }
 
         .hero-slider__cta-enter {
@@ -521,34 +518,31 @@ export default function HeroSlider({ slides }: HeroSliderProps) {
           .hero-slider__slide-item--active {
             width: 280px;
             height: 280px;
-            border-radius: 20px;
+            transform: translate(-50%, -50%) scale(1) rotate(-8deg);
           }
 
           .hero-slider__slide-item--prev {
             width: 280px;
             height: 280px;
-            left: 0;
-            top: 0;
-            transform: translate(-50%, -50%) scale(0.55);
-            border-radius: 50%;
+            left: 22%;
+            top: 22%;
+            transform: translate(-50%, -50%) scale(0.55) rotate(0deg);
           }
 
           .hero-slider__slide-item--next {
             width: 280px;
             height: 280px;
-            left: 0;
-            top: 100%;
-            transform: translate(-50%, -50%) scale(0.55);
-            border-radius: 50%;
+            left: 22%;
+            top: 78%;
+            transform: translate(-50%, -50%) scale(0.55) rotate(0deg);
           }
 
           .hero-slider__slide-item--hidden {
             width: 280px;
             height: 280px;
-            left: 0;
+            left: 22%;
             top: 50%;
-            transform: translate(-50%, -50%) scale(0.2);
-            border-radius: 50%;
+            transform: translate(-50%, -50%) scale(0.2) rotate(0deg);
           }
 
           .hero-slider__nav {
@@ -576,34 +570,31 @@ export default function HeroSlider({ slides }: HeroSliderProps) {
           .hero-slider__slide-item--active {
             width: 220px;
             height: 220px;
-            border-radius: 16px;
+            transform: translate(-50%, -50%) scale(1) rotate(-8deg);
           }
 
           .hero-slider__slide-item--prev {
             width: 220px;
             height: 220px;
-            left: 0;
-            top: 0;
-            transform: translate(-50%, -50%) scale(0.55);
-            border-radius: 50%;
+            left: 22%;
+            top: 22%;
+            transform: translate(-50%, -50%) scale(0.55) rotate(0deg);
           }
 
           .hero-slider__slide-item--next {
             width: 220px;
             height: 220px;
-            left: 0;
-            top: 100%;
-            transform: translate(-50%, -50%) scale(0.55);
-            border-radius: 50%;
+            left: 22%;
+            top: 78%;
+            transform: translate(-50%, -50%) scale(0.55) rotate(0deg);
           }
 
           .hero-slider__slide-item--hidden {
             width: 220px;
             height: 220px;
-            left: 0;
+            left: 22%;
             top: 50%;
-            transform: translate(-50%, -50%) scale(0.2);
-            border-radius: 50%;
+            transform: translate(-50%, -50%) scale(0.2) rotate(0deg);
           }
 
           .hero-slider__cta {
@@ -699,13 +690,6 @@ export default function HeroSlider({ slides }: HeroSliderProps) {
 
           {/* Text Content */}
           <div className="hero-slider__text-area" style={{ color: currentSlide.text_color }}>
-            <div
-              className="hero-slider__badge"
-              style={{ color: currentSlide.text_color }}
-            >
-              ✦ TAMIM PARFUME
-            </div>
-
             <h1
               key={`title-${activeIndex}`}
               className="hero-slider__title hero-slider__title-enter"

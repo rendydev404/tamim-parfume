@@ -40,27 +40,7 @@ export default function Header() {
   const [isHiddenOnHome, setIsHiddenOnHome] = useState(false)
 
   useEffect(() => {
-    if (pathname !== '/') {
-      setIsHiddenOnHome(false)
-      return
-    }
-    const handleScroll = () => {
-      // Show at very top, hide during sequence, show after sequence
-      if (window.scrollY < 50) {
-        setIsHiddenOnHome(false)
-      } else if (window.scrollY < window.innerHeight * 3.8) {
-        setIsHiddenOnHome(true)
-      } else {
-        setIsHiddenOnHome(false)
-      }
-    }
-    handleScroll()
-    window.addEventListener('scroll', handleScroll, { passive: true })
-    window.addEventListener('resize', handleScroll, { passive: true })
-    return () => {
-      window.removeEventListener('scroll', handleScroll)
-      window.removeEventListener('resize', handleScroll)
-    }
+    setIsHiddenOnHome(false)
   }, [pathname])
 
   useEffect(() => {
