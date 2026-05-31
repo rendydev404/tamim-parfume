@@ -653,7 +653,7 @@ export async function getTransactionDetail(reference: string) {
     const duitkuRef = json.reference || ''
     if (duitkuRef) {
       const baseUrl = DUITKU_API_URL.includes('sandbox')
-        ? 'https://sandbox.duitku.com/topup/selectPayment.aspx'
+        ? 'https://sandbox.duitku.com/webapi/selectPayment.aspx'
         : 'https://passport.duitku.com/webapi/selectPayment.aspx'
       payUrl = `${baseUrl}?reference=${duitkuRef}`
       qrUrl = payUrl
