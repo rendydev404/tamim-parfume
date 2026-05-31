@@ -608,28 +608,27 @@ export async function getTransactionDetail(reference: string) {
     status = 'EXPIRED'
   }
 
-  // Map Duitku code back to frontend code name using reverse mapping
-  const clientMethod = DUITKU_CODE_TO_NAME[json.paymentMethod] || 'qris'
-
   const expiredTime = Math.floor(Date.now() / 1000) + 24 * 60 * 60
 
-  // Fetch customer details from Database
+  // Fetch customer and order details from Database
   let customerName = ''
   let customerPhone = ''
   let customerEmail = ''
+  let dbPaymentMethod = ''
 
   try {
     const { createClient } = await import('@/lib/supabase/server')
     const supabase = await createClient()
     const { data: order } = await supabase
       .from('orders')
-      .select('recipient_name, recipient_phone, user_id')
+      .select('recipient_name, recipient_phone, user_id, payment_method')
       .eq('order_number', originalOrderNumber)
       .single()
       
     if (order) {
       customerName = order.recipient_name
       customerPhone = order.recipient_phone
+      dbPaymentMethod = order.payment_method || ''
       
       if (order.user_id) {
         const { data: profile } = await supabase
@@ -645,6 +644,9 @@ export async function getTransactionDetail(reference: string) {
   } catch (dbErr) {
     console.error('[Duitku] Failed to fetch customer details for real transaction status:', dbErr)
   }
+
+  // Determine client method (strictly prefer database value, fallback to Duitku code mapping)
+  const clientMethod = dbPaymentMethod || DUITKU_CODE_TO_NAME[json.paymentMethod] || 'qris'
 
   // Construct QR URL / Pay URL for QRIS or other redirect methods in sandbox
   let payUrl = ''
