@@ -157,7 +157,7 @@ function getPaymentInstructions(method: string, payCode: string): { title: strin
           title: `Pembayaran via Gerai ${storeName}`,
           steps: [
             `Kunjungi gerai ${storeName} terdekat pilihan Anda.`,
-            `Sampaikan ke kasir bahwa Anda ingin melakukan pembayaran belanja online via <strong>Midtrans</strong>.`,
+            `Sampaikan ke kasir bahwa Anda ingin melakukan pembayaran belanja online.`,
             `Berikan nomor Kode Pembayaran Anda kepada kasir: <strong>${payCode}</strong>.`,
             'Kasir akan menyebutkan nama merchant & total tagihan Anda. Silakan bayar sebesar nominal tersebut menggunakan uang tunai atau kartu debit.',
             'Simpan struk pembayaran sebagai bukti transaksi yang sah.',

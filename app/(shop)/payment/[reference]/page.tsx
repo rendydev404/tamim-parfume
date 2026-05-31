@@ -401,7 +401,7 @@ export default function PaymentPage() {
                 </div>
               )}
 
-              {/* Midtrans Simulation Card */}
+              {/* Payment Simulation Card */}
               {reference.startsWith('MOCK-') && (
                 <div style={{
                   padding: '20px', borderRadius: '14px', marginBottom: '12px',
@@ -410,7 +410,7 @@ export default function PaymentPage() {
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#ca8a04', fontSize: '13px', fontWeight: 700 }}>
                     <ShieldCheck size={16} />
-                    <span>🔧 MODE SIMULASI MIDTRANS (DEVELOPER)</span>
+                    <span>🔧 MODE SIMULASI PEMBAYARAN (DEVELOPER)</span>
                   </div>
                   <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)', textAlign: 'center', lineHeight: 1.5, margin: 0 }}>
                     Anda sedang menggunakan kunci server placeholder Sandbox. Gunakan tombol di bawah ini untuk mensimulasikan status pembayaran berhasil secara instan.
