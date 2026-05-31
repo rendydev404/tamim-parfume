@@ -418,17 +418,19 @@ export default function PaymentPage() {
                   <button
                     onClick={async () => {
                       try {
+                        const body = new URLSearchParams()
+                        body.append('merchantCode', 'MOCK_MERCHANT')
+                        body.append('amount', String(Math.round(transaction.amount)))
+                        body.append('merchantOrderId', transaction.merchant_ref)
+                        body.append('signature', 'mock-key')
+                        body.append('resultCode', '00')
+                        body.append('reference', transaction.reference)
+                        body.append('paymentCode', transaction.pay_code || '')
+
                         const res = await fetch('/api/payment/callback', {
                           method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            order_id: transaction.merchant_ref,
-                            status_code: '200',
-                            gross_amount: String(transaction.amount),
-                            signature_key: 'mock-key',
-                            transaction_status: 'settlement',
-                            fraud_status: 'accept'
-                          })
+                          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                          body: body.toString()
                         })
                         if (res.ok) {
                           toast.success('Simulasi pembayaran sukses berhasil dikirim!')

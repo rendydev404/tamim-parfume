@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createTransaction } from '@/lib/midtrans'
+import { createTransaction } from '@/lib/duitku'
 
 export async function POST(request: Request) {
   try {

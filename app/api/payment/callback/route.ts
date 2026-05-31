@@ -1,61 +1,89 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { verifyCallbackSignature } from '@/lib/midtrans'
+import { verifyCallbackSignature } from '@/lib/duitku'
 import { autoBookBiteshipShipment } from '@/lib/biteship'
 
 export async function POST(request: Request) {
   try {
-    let body: any
-    try {
-      body = await request.json()
-    } catch (e) {
-      console.log('Empty or invalid JSON body received, returning ping success')
-      return NextResponse.json({ success: true, message: 'Ping successful' })
+    let merchantCode = ''
+    let amount = ''
+    let merchantOrderId = ''
+    let signature = ''
+    let resultCode = ''
+    let reference = ''
+    let paymentCode = ''
+
+    const contentType = request.headers.get('content-type') || ''
+    if (contentType.includes('application/x-www-form-urlencoded')) {
+      const text = await request.text()
+      const params = new URLSearchParams(text)
+      merchantCode = params.get('merchantCode') || ''
+      amount = params.get('amount') || ''
+      merchantOrderId = params.get('merchantOrderId') || ''
+      signature = params.get('signature') || ''
+      resultCode = params.get('resultCode') || ''
+      reference = params.get('reference') || ''
+      paymentCode = params.get('paymentCode') || ''
+    } else {
+      // JSON fallback (such as ping or custom JSON testing)
+      try {
+        const json = await request.json()
+        merchantCode = json.merchantCode || ''
+        amount = String(json.amount || '')
+        merchantOrderId = json.merchantOrderId || json.order_id || ''
+        signature = json.signature || json.signature_key || ''
+        resultCode = json.resultCode || ''
+        reference = json.reference || ''
+        paymentCode = json.paymentCode || ''
+
+        // Map Midtrans fields if sent from old client simulation
+        if (!resultCode && json.transaction_status) {
+          if (json.transaction_status === 'settlement' || json.transaction_status === 'capture') {
+            resultCode = '00'
+          } else {
+            resultCode = '01'
+          }
+        }
+        if (!amount && json.gross_amount) {
+          amount = String(json.gross_amount)
+        }
+      } catch (e) {
+        console.log('Empty or invalid request received')
+        return new Response('OK', { status: 200 })
+      }
     }
 
-    const {
-      order_id,
-      status_code,
-      gross_amount,
-      signature_key,
-      transaction_status,
-      fraud_status,
-    } = body
-
-    if (!order_id || !status_code || !gross_amount || !signature_key || !transaction_status) {
-      return NextResponse.json({ success: false, error: 'Invalid parameters' }, { status: 400 })
+    if (!merchantOrderId || !amount || !signature || !resultCode) {
+      return new Response('Invalid parameters', { status: 400 })
     }
 
     // Verify signature key
     const isSignatureValid = await verifyCallbackSignature(
-      order_id,
-      status_code,
-      gross_amount,
-      signature_key
+      merchantOrderId,
+      amount,
+      signature
     )
 
     if (!isSignatureValid) {
-      console.error('Invalid signature key for order:', order_id)
-      return NextResponse.json({ success: false, error: 'Invalid signature' }, { status: 401 })
+      console.error('Invalid signature for order:', merchantOrderId)
+      return new Response('Invalid signature', { status: 401 })
     }
 
-    // Map Midtrans status to generic status
+    // Map Duitku status code to generic status
     let status = 'UNPAID'
-    if (transaction_status === 'settlement' || (transaction_status === 'capture' && fraud_status === 'accept')) {
+    if (resultCode === '00') {
       status = 'PAID'
-    } else if (transaction_status === 'expire') {
-      status = 'EXPIRED'
-    } else if (transaction_status === 'cancel' || transaction_status === 'deny') {
+    } else if (resultCode === '01') {
+      status = 'UNPAID'
+    } else {
       status = 'FAILED'
     }
 
-    const merchant_ref = order_id
-
+    const merchant_ref = merchantOrderId
     const supabase = await createClient()
 
     let orderStatus = 'pending_payment'
     if (status === 'PAID') orderStatus = 'paid'
-    else if (status === 'EXPIRED') orderStatus = 'cancelled'
     else if (status === 'FAILED') orderStatus = 'cancelled'
 
     const updates: Record<string, unknown> = {
@@ -63,12 +91,9 @@ export async function POST(request: Request) {
       paid_at: status === 'PAID' ? new Date().toISOString() : null,
     }
 
-    // Add cancellation details for expired/failed payments
     if (orderStatus === 'cancelled') {
       updates.cancelled_at = new Date().toISOString()
-      updates.cancel_reason = status === 'EXPIRED'
-        ? 'Pembayaran kedaluwarsa'
-        : 'Pembayaran gagal'
+      updates.cancel_reason = 'Pembayaran gagal/kedaluwarsa'
     }
 
     // Get the order first to check current status
@@ -81,18 +106,18 @@ export async function POST(request: Request) {
     if (!order) {
       const dummyIds = ['YOUR_ORDER_ID', 'order-12345', 'test-transaction-123']
       if (
-        dummyIds.includes(order_id) ||
-        order_id.toLowerCase().includes('test') ||
-        order_id.startsWith('MOCK-')
+        dummyIds.includes(merchantOrderId) ||
+        merchantOrderId.toLowerCase().includes('test') ||
+        merchantOrderId.startsWith('MOCK-')
       ) {
-        return NextResponse.json({ success: true, message: 'Test notification received successfully' })
+        return new Response('OK', { status: 200 })
       }
-      return NextResponse.json({ success: false, error: 'Order not found' }, { status: 404 })
+      return new Response('Order not found', { status: 404 })
     }
 
     // Don't process if order is already in a final state
     if (order.status === 'cancelled' || order.status === 'delivered') {
-      return NextResponse.json({ success: true, message: 'Order already in final state' })
+      return new Response('OK', { status: 200 })
     }
 
     const { error } = await supabase
@@ -102,21 +127,21 @@ export async function POST(request: Request) {
 
     if (error) {
       console.error('Callback update error:', error)
-      return NextResponse.json({ success: false }, { status: 500 })
+      return new Response('Database update error', { status: 500 })
     }
 
     // Trigger automatic Biteship courier booking if status is now 'paid'
     if (orderStatus === 'paid') {
       try {
-        console.log(`[Midtrans Callback] 🚀 Automating courier booking for order: ${order.id}`)
+        console.log(`[Duitku Callback] 🚀 Automating courier booking for order: ${order.id}`)
         const bookingRes = await autoBookBiteshipShipment(order.id, supabase)
         if (bookingRes.success) {
-          console.log(`[Midtrans Callback] ✅ Courier booked successfully! Resi: ${bookingRes.trackingNumber}`)
+          console.log(`[Duitku Callback] ✅ Courier booked successfully! Resi: ${bookingRes.trackingNumber}`)
         } else {
-          console.error(`[Midtrans Callback] ❌ Courier booking failed: ${bookingRes.error}`)
+          console.error(`[Duitku Callback] ❌ Courier booking failed: ${bookingRes.error}`)
         }
       } catch (bookErr) {
-        console.error('[Midtrans Callback] 💥 Error in autoBookBiteshipShipment:', bookErr)
+        console.error('[Duitku Callback] 💥 Error in autoBookBiteshipShipment:', bookErr)
       }
     }
 
@@ -184,9 +209,13 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({ success: true })
+    // Duitku expects raw "OK" response
+    return new Response('OK', {
+      status: 200,
+      headers: { 'Content-Type': 'text/plain' }
+    })
   } catch (error) {
     console.error('Payment callback error:', error)
-    return NextResponse.json({ success: false }, { status: 500 })
+    return new Response('Internal Server Error', { status: 500 })
   }
 }
