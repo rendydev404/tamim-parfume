@@ -649,14 +649,14 @@ export async function getTransactionDetail(reference: string) {
   // Construct QR URL / Pay URL for QRIS or other redirect methods in sandbox
   let payUrl = ''
   let qrUrl = json.qrCode || ''
-  if (clientMethod === 'qris') {
-    const duitkuRef = json.reference || ''
-    if (duitkuRef) {
-      const baseUrl = DUITKU_API_URL.includes('sandbox')
-        ? 'https://sandbox.duitku.com/webapi/selectPayment.aspx'
-        : 'https://passport.duitku.com/webapi/selectPayment.aspx'
-      payUrl = `${baseUrl}?reference=${duitkuRef}`
-      qrUrl = payUrl
+  
+  if (DUITKU_API_URL.includes('sandbox')) {
+    payUrl = 'https://sandbox.duitku.com/payment/demo/demosuccesstransaction.aspx'
+    
+    if (clientMethod === 'qris') {
+      // Generate a mock QRIS code for visual preview in sandbox
+      const mockQrData = `00020101021226380010ID.CO.QRIS.WWW0215ID10202103131015204000053033605802ID5913Tamim%20Parfume6005Bogor61051615262190115${json.reference || reference}`
+      qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(mockQrData)}`
     }
   }
 

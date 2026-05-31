@@ -383,36 +383,13 @@ export default function PaymentPage() {
                   <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '14px' }}>
                     Scan QR Code
                   </p>
-                  {/* If qr_url is a Duitku payment page URL (not an image), show redirect simulator panel */}
-                  {transaction.qr_url.includes('sandbox.duitku.com') || transaction.qr_url.includes('duitku.com/topup') ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', padding: '16px', gap: '12px', textAlign: 'center', background: 'var(--color-bg-secondary)', borderRadius: '12px', border: '1px solid var(--color-border)' }}>
-                      <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', margin: 0, lineHeight: 1.5 }}>
-                        Pembayaran QRIS menggunakan Duitku Sandbox memerlukan pengalihan ke halaman simulator pembayaran Duitku.
-                      </p>
-                      <a
-                        href={transaction.qr_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                          ...styles.btnPrimary,
-                          textDecoration: 'none',
-                          width: '100%',
-                          maxWidth: '280px',
-                          marginTop: '6px',
-                        }}
-                      >
-                        Buka Simulator Pembayaran ↗
-                      </a>
-                    </div>
-                  ) : (
-                    <div style={styles.qrFrame}>
-                      <img
-                        src={transaction.qr_url}
-                        alt="QR Code Pembayaran"
-                        style={{ width: '200px', height: '200px', borderRadius: '8px' }}
-                      />
-                    </div>
-                  )}
+                  <div style={styles.qrFrame}>
+                    <img
+                      src={transaction.qr_url}
+                      alt="QR Code Pembayaran"
+                      style={{ width: '200px', height: '200px', borderRadius: '8px' }}
+                    />
+                  </div>
                   {transaction.qr_string && (
                     <button
                       onClick={() => copyToClipboard(transaction.qr_string!, 'code')}
@@ -421,6 +398,63 @@ export default function PaymentPage() {
                       <Copy size={14} /> Salin QR String
                     </button>
                   )}
+                </div>
+              )}
+
+              {/* Real Duitku Sandbox Payment Simulator Helper */}
+              {transaction.pay_url && transaction.pay_url.includes('demosuccesstransaction.aspx') && (
+                <div style={{
+                  padding: '20px', borderRadius: '14px', marginBottom: '12px',
+                  border: '1.5px dashed #0284c7', background: 'rgba(14, 165, 233, 0.05)',
+                  display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'center',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#0284c7', fontSize: '13px', fontWeight: 700 }}>
+                    <ShieldCheck size={16} />
+                    <span>🔧 SIMULATOR DUITKU SANDBOX</span>
+                  </div>
+                  <p style={{ fontSize: '12.5px', color: 'var(--color-text-secondary)', textAlign: 'center', lineHeight: 1.6, margin: 0 }}>
+                    Untuk mensimulasikan pembayaran sukses pada mode Sandbox, silakan salin <strong>Merchant Order ID</strong> di bawah ini, buka Halaman Simulator, lalu tempelkan.
+                  </p>
+                  
+                  <div style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    width: '100%', background: 'var(--color-bg-secondary)', padding: '10px 14px',
+                    borderRadius: '8px', border: '1px solid var(--color-border)', gap: '10px'
+                  }}>
+                    <span style={{ fontFamily: 'monospace', fontSize: '13px', fontWeight: 600, color: 'var(--color-text)', wordBreak: 'break-all' }}>
+                      {transaction.reference}
+                    </span>
+                    <button
+                      onClick={() => copyToClipboard(transaction.reference, 'code')}
+                      style={{
+                        ...styles.copyBtn,
+                        background: '#111',
+                        color: '#fff',
+                        padding: '6px 12px',
+                      }}
+                    >
+                      <Copy size={12} /> Salin
+                    </button>
+                  </div>
+
+                  <a
+                    href={transaction.pay_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      ...styles.btnPrimary,
+                      textDecoration: 'none',
+                      marginTop: '4px',
+                      background: 'linear-gradient(135deg, #0ea5e9, #0284c7)',
+                      color: '#fff',
+                      fontSize: '13px',
+                      padding: '10px 20px',
+                      boxShadow: '0 4px 12px rgba(2,132,199,0.2)',
+                      border: 'none',
+                    }}
+                  >
+                    Buka Halaman Simulator Pembayaran ↗
+                  </a>
                 </div>
               )}
 
