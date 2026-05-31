@@ -84,8 +84,11 @@ export async function GET(request: NextRequest) {
 
       channels.push({
         ...channelDef,
-        // Always use our own icon for consistent branding
-        icon_url: channelDef.icon_url,
+        // For QRIS: always use our local icon (Duitku returns ShopeePay icon otherwise)
+        // For others: use Duitku API icon (has correct bank logos) with local fallback
+        icon_url: channelDef.code === 'qris'
+          ? '/images/payment/image.png'
+          : (method.paymentImage || channelDef.icon_url),
         active: true,
         fee_customer: { flat: parseInt(method.totalFee || '0', 10), percent: 0 },
       })
