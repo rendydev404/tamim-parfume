@@ -11,7 +11,7 @@ const DUITKU_MERCHANT_KEY = process.env.DUITKU_MERCHANT_KEY || ''
 // Helper: check if using placeholder/missing credentials
 function isPlaceholderCredentials(): boolean {
   return !DUITKU_MERCHANT_KEY || 
-         DUITKU_MERCHANT_KEY.includes('870ed5eb4e835a776f267ffd21bcfc86') || 
+         DUITKU_MERCHANT_KEY.includes('YOUR_DUITKU_SANDBOX_KEY') || 
          DUITKU_MERCHANT_CODE === 'D12345' ||
          !DUITKU_MERCHANT_CODE
 }
