@@ -8,6 +8,14 @@ const DUITKU_API_URL = process.env.DUITKU_API_URL || 'https://sandbox.duitku.com
 const DUITKU_MERCHANT_CODE = process.env.DUITKU_MERCHANT_CODE || ''
 const DUITKU_MERCHANT_KEY = process.env.DUITKU_MERCHANT_KEY || ''
 
+// Helper: check if using placeholder/missing credentials
+function isPlaceholderCredentials(): boolean {
+  return !DUITKU_MERCHANT_KEY || 
+         DUITKU_MERCHANT_KEY.includes('870ed5eb4e835a776f267ffd21bcfc86') || 
+         DUITKU_MERCHANT_CODE === 'D12345' ||
+         !DUITKU_MERCHANT_CODE
+}
+
 interface CreateTransactionParams {
   method: string
   merchantRef: string
@@ -35,14 +43,115 @@ const PAYMENT_NAMES: Record<string, string> = {
 }
 
 // Map frontend code name to Duitku paymentMethod code
+// NOTE: Actual available codes depend on merchant sandbox configuration.
+// Use getAvailablePaymentMethods() to fetch dynamically.
 const DUITKU_METHOD_CODES: Record<string, string> = {
   bca: 'BC',
   bni: 'I1',
   bri: 'BR',
   mandiri: 'M2',
-  qris: 'SP', // ShopeePay QRIS or DQ (Duitku QRIS)
-  alfamart: 'AL',
-  indomaret: 'FT', // Indomaret
+  permata: 'BT',
+  cimb: 'B1',
+  maybank: 'VA',
+  qris: 'SP',     // ShopeePay QRIS — will auto-detect from API
+  ovo: 'OV',
+  dana: 'DA',
+  alfamart: 'FT',  // Retail outlets (Alfamart, Pos, Pegadaian)
+  indomaret: 'FT', // Same retail code
+  credit_card: 'VC',
+}
+
+// Reverse mapping: Duitku code → frontend code name
+const DUITKU_CODE_TO_NAME: Record<string, string> = {
+  BC: 'bca',
+  I1: 'bni',
+  BR: 'bri',
+  M2: 'mandiri',
+  BT: 'permata',
+  B1: 'cimb',
+  VA: 'maybank',
+  SP: 'qris',
+  QR: 'qris',   // Alternative QRIS code
+  NQ: 'qris',   // NusaPay QRIS
+  DQ: 'qris',   // Duitku QRIS
+  OV: 'ovo',
+  DA: 'dana',
+  FT: 'alfamart',
+  AL: 'alfamart',
+  VC: 'credit_card',
+  MG: 'credit_card',
+}
+
+/**
+ * Dynamically fetch available payment methods from Duitku API
+ * This ensures only sandbox-supported methods are shown to the user.
+ */
+export async function getAvailablePaymentMethods(amount: number = 10000) {
+  if (isPlaceholderCredentials()) {
+    // Return hardcoded list for mock/placeholder mode
+    return [
+      { paymentMethod: 'BC', paymentName: 'BCA Virtual Account', paymentImage: '', totalFee: '0' },
+      { paymentMethod: 'I1', paymentName: 'BNI Virtual Account', paymentImage: '', totalFee: '0' },
+      { paymentMethod: 'BR', paymentName: 'BRI Virtual Account', paymentImage: '', totalFee: '0' },
+      { paymentMethod: 'M2', paymentName: 'Mandiri Virtual Account', paymentImage: '', totalFee: '0' },
+      { paymentMethod: 'SP', paymentName: 'QRIS', paymentImage: '', totalFee: '0' },
+      { paymentMethod: 'FT', paymentName: 'Retail (Alfamart/Indomaret)', paymentImage: '', totalFee: '0' },
+    ]
+  }
+
+  try {
+    // Format datetime as Asia/Jakarta
+    const now = new Date()
+    const jakartaTime = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Jakarta',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      hour12: false,
+    }).formatToParts(now)
+
+    const dtParts: Record<string, string> = {}
+    for (const part of jakartaTime) {
+      dtParts[part.type] = part.value
+    }
+    const datetime = `${dtParts.year}-${dtParts.month}-${dtParts.day} ${dtParts.hour}:${dtParts.minute}:${dtParts.second}`
+
+    // Signature: sha256(merchantCode + amount + datetime + merchantKey)
+    const signatureStr = DUITKU_MERCHANT_CODE + amount + datetime + DUITKU_MERCHANT_KEY
+    const signature = createHash('sha256').update(signatureStr).digest('hex')
+
+    console.log('[Duitku] Fetching available payment methods...')
+    console.log('[Duitku] datetime:', datetime)
+
+    const res = await fetch(`${DUITKU_API_URL}/api/merchant/paymentmethod/getpaymentmethod`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({
+        merchantcode: DUITKU_MERCHANT_CODE,
+        amount: String(amount),
+        datetime,
+        signature,
+      }),
+    })
+
+    if (!res.ok) {
+      const errText = await res.text()
+      console.error('[Duitku] getPaymentMethod HTTP error:', res.status, errText)
+      return []
+    }
+
+    const json = await res.json()
+    console.log('[Duitku] Available payment methods:', JSON.stringify(json, null, 2))
+
+    // Response is either { paymentFee: [...] } or directly [...]
+    const methods = Array.isArray(json) ? json : (json.paymentFee || [])
+    return methods
+  } catch (err) {
+    console.error('[Duitku] Error fetching payment methods:', err)
+    return []
+  }
 }
 
 /**
@@ -179,9 +288,11 @@ function getPaymentInstructions(method: string, payCode: string): { title: strin
  * Create a payment transaction using Duitku API v2 Inquiry
  */
 export async function createTransaction(params: CreateTransactionParams) {
-  const isPlaceholderKey = !DUITKU_MERCHANT_KEY || DUITKU_MERCHANT_KEY.includes('YOUR_DUITKU_SANDBOX_KEY')
+  console.log('[Duitku debug] DUITKU_MERCHANT_CODE:', DUITKU_MERCHANT_CODE)
+  console.log('[Duitku debug] DUITKU_MERCHANT_KEY:', DUITKU_MERCHANT_KEY ? '*****' : 'empty')
+  console.log('[Duitku debug] isPlaceholderCredentials:', isPlaceholderCredentials())
   
-  if (isPlaceholderKey) {
+  if (isPlaceholderCredentials()) {
     const mockRef = `MOCK-${params.method}-${params.merchantRef}`
     let payCode = ''
     let qrUrl = ''
@@ -222,21 +333,62 @@ export async function createTransaction(params: CreateTransactionParams) {
   }
 
   // Real Duitku API Integration
-  const paymentMethod = DUITKU_METHOD_CODES[params.method]
+  // Resolve the correct Duitku payment method code dynamically
+  let paymentMethod = DUITKU_METHOD_CODES[params.method]
+  
+  // For QRIS and other methods, dynamically detect the actual code from Duitku API
+  const isQris = params.method === 'qris'
+  const qrisAlternativeCodes = ['SP', 'QR', 'NQ', 'DQ']
+  
+  try {
+    const availableMethods = await getAvailablePaymentMethods(Math.round(params.amount))
+    
+    if (availableMethods.length > 0) {
+      if (isQris) {
+        // Find any available QRIS-type method from the API
+        const qrisMethod = availableMethods.find(
+          (m: { paymentMethod: string }) => qrisAlternativeCodes.includes(m.paymentMethod)
+        )
+        if (qrisMethod) {
+          paymentMethod = qrisMethod.paymentMethod
+          console.log('[Duitku] Using QRIS code from API:', paymentMethod)
+        }
+      } else if (paymentMethod) {
+        // Verify the hardcoded code is actually available
+        const found = availableMethods.find(
+          (m: { paymentMethod: string }) => m.paymentMethod === paymentMethod
+        )
+        if (!found) {
+          console.warn(`[Duitku] Payment method ${paymentMethod} (${params.method}) not available in sandbox. Available:`,
+            availableMethods.map((m: { paymentMethod: string; paymentName: string }) => `${m.paymentMethod}=${m.paymentName}`).join(', ')
+          )
+          throw new Error(`Metode pembayaran ${PAYMENT_NAMES[params.method] || params.method} tidak tersedia di sandbox Duitku. Silakan pilih metode lain.`)
+        }
+      }
+    }
+  } catch (fetchErr) {
+    // If it's our own "not available" error, re-throw it
+    if (fetchErr instanceof Error && fetchErr.message.includes('tidak tersedia')) {
+      throw fetchErr
+    }
+    console.warn('[Duitku] Could not fetch available methods, proceeding with default code:', fetchErr)
+  }
+
   if (!paymentMethod) {
     throw new Error(`Unsupported payment method: ${params.method}`)
   }
 
   const roundedAmount = Math.round(params.amount)
+  const uniqueOrderId = `${params.merchantRef}_${Math.floor(Date.now() / 1000)}`
   
   // Signature calculation: md5(merchantCode + merchantOrderId + paymentAmount + merchantKey)
-  const signatureText = DUITKU_MERCHANT_CODE + params.merchantRef + roundedAmount + DUITKU_MERCHANT_KEY
+  const signatureText = DUITKU_MERCHANT_CODE + uniqueOrderId + roundedAmount + DUITKU_MERCHANT_KEY
   const signature = createHash('md5').update(signatureText).digest('hex')
 
   const payload = {
     merchantCode: DUITKU_MERCHANT_CODE,
     paymentAmount: roundedAmount,
-    merchantOrderId: params.merchantRef,
+    merchantOrderId: uniqueOrderId,
     productDetails: `Tamim Parfume Order #${params.merchantRef}`,
     email: params.customerEmail,
     phoneNumber: params.customerPhone,
@@ -253,6 +405,8 @@ export async function createTransaction(params: CreateTransactionParams) {
     }))
   }
 
+  console.log('[Duitku debug] Requesting Duitku API with uniqueOrderId:', uniqueOrderId, 'paymentMethod:', paymentMethod)
+
   const res = await fetch(`${DUITKU_API_URL}/api/merchant/v2/inquiry`, {
     method: 'POST',
     headers: {
@@ -263,12 +417,16 @@ export async function createTransaction(params: CreateTransactionParams) {
   })
 
   if (!res.ok) {
-    throw new Error(`Failed to create Duitku transaction: HTTP ${res.status}`)
+    const errorText = await res.text()
+    console.error('[Duitku debug] HTTP error response:', errorText)
+    throw new Error(`Failed to create Duitku transaction: HTTP ${res.status} - ${errorText}`)
   }
 
   const json = await res.json()
+  console.log('[Duitku debug] Duitku inquiry response:', JSON.stringify(json, null, 2))
 
   if (json.statusCode !== '00') {
+    console.error('[Duitku debug] Duitku business logic error response:', json)
     throw new Error(json.statusMessage || `Duitku inquiry failed with code ${json.statusCode}`)
   }
 
@@ -278,11 +436,13 @@ export async function createTransaction(params: CreateTransactionParams) {
   const payUrl = json.paymentUrl || ''
   
   let qrUrl = ''
-  if (params.method === 'qris') {
-    const rawQr = json.qrCode || json.qrContent || ''
+  if (isQris) {
+    // Try multiple QRIS response fields
+    const rawQr = json.qrString || json.qrCode || json.qrContent || ''
     if (rawQr) {
       qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(rawQr)}`
     } else if (payUrl) {
+      // Duitku sandbox may return QRIS as a paymentUrl (redirect to QR page)
       qrUrl = payUrl
     }
   }
@@ -290,7 +450,7 @@ export async function createTransaction(params: CreateTransactionParams) {
   const expiredTime = Math.floor(Date.now() / 1000) + 24 * 60 * 60
 
   return {
-    reference: ref,
+    reference: uniqueOrderId,
     merchant_ref: params.merchantRef,
     payment_selection_type: 'direct',
     payment_method: params.method,
@@ -305,7 +465,7 @@ export async function createTransaction(params: CreateTransactionParams) {
     amount_received: params.amount,
     pay_code: payCode,
     pay_url: payUrl,
-    checkout_url: `/payment/${ref}`,
+    checkout_url: `/payment/${uniqueOrderId}`,
     status: 'UNPAID',
     expired_time: expiredTime,
     qr_url: qrUrl,
@@ -404,21 +564,9 @@ export async function getTransactionDetail(reference: string) {
     ? 'https://api-sandbox.duitku.com/api/merchant/transactionStatus'
     : 'https://api-prod.duitku.com/api/merchant/transactionStatus'
 
-  // Extract merchantOrderId from order_number in reference.
-  // We can query Supabase to find the order number if needed.
-  let merchantOrderId = reference
-  try {
-    const { createClient } = await import('@/lib/supabase/server')
-    const supabase = await createClient()
-    const { data: order } = await supabase
-      .from('orders')
-      .select('order_number')
-      .or(`id.eq.${reference},order_number.eq.${reference}`)
-      .maybeSingle()
-    if (order) {
-      merchantOrderId = order.order_number
-    }
-  } catch {}
+  // Extract merchantOrderId and original order_number
+  const merchantOrderId = reference
+  const originalOrderNumber = reference.includes('_') ? reference.split('_')[0] : reference
 
   const signatureText = DUITKU_MERCHANT_CODE + merchantOrderId + DUITKU_MERCHANT_KEY
   const signature = createHash('md5').update(signatureText).digest('hex')
@@ -455,14 +603,8 @@ export async function getTransactionDetail(reference: string) {
     status = 'EXPIRED'
   }
 
-  // Map Duitku code back to frontend code name
-  let clientMethod = 'qris'
-  for (const [key, val] of Object.entries(DUITKU_METHOD_CODES)) {
-    if (val === json.paymentMethod) {
-      clientMethod = key
-      break
-    }
-  }
+  // Map Duitku code back to frontend code name using reverse mapping
+  const clientMethod = DUITKU_CODE_TO_NAME[json.paymentMethod] || 'qris'
 
   const expiredTime = Math.floor(Date.now() / 1000) + 24 * 60 * 60
 

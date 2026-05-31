@@ -383,13 +383,32 @@ export default function PaymentPage() {
                   <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '14px' }}>
                     Scan QR Code
                   </p>
-                  <div style={styles.qrFrame}>
-                    <img
-                      src={transaction.qr_url}
-                      alt="QR Code Pembayaran"
-                      style={{ width: '200px', height: '200px', borderRadius: '8px' }}
-                    />
-                  </div>
+                  {/* If qr_url is a Duitku payment page URL (not an image), show it in iframe */}
+                  {transaction.qr_url.includes('sandbox.duitku.com') || transaction.qr_url.includes('duitku.com/topup') ? (
+                    <>
+                      <iframe
+                        src={transaction.qr_url}
+                        style={{ width: '100%', minHeight: '400px', border: 'none', borderRadius: '12px', background: '#fff' }}
+                        title="Duitku QRIS Payment"
+                      />
+                      <a
+                        href={transaction.qr_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ ...styles.copyBtn, marginTop: '14px', background: 'var(--color-bg-secondary)', color: 'var(--color-text-secondary)', border: '1px solid var(--color-border)', textDecoration: 'none' }}
+                      >
+                        Buka Halaman Pembayaran ↗
+                      </a>
+                    </>
+                  ) : (
+                    <div style={styles.qrFrame}>
+                      <img
+                        src={transaction.qr_url}
+                        alt="QR Code Pembayaran"
+                        style={{ width: '200px', height: '200px', borderRadius: '8px' }}
+                      />
+                    </div>
+                  )}
                   {transaction.qr_string && (
                     <button
                       onClick={() => copyToClipboard(transaction.qr_string!, 'code')}
@@ -398,6 +417,27 @@ export default function PaymentPage() {
                       <Copy size={14} /> Salin QR String
                     </button>
                   )}
+                </div>
+              )}
+
+              {/* Pay URL redirect (for methods where Duitku provides a payment page) */}
+              {transaction.pay_url && !transaction.qr_url && !payCode && (
+                <div style={{ ...styles.card, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
+                  <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', textAlign: 'center', lineHeight: 1.5, margin: 0 }}>
+                    Klik tombol di bawah untuk membuka halaman pembayaran
+                  </p>
+                  <a
+                    href={transaction.pay_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      ...styles.btnPrimary,
+                      textDecoration: 'none',
+                      textAlign: 'center',
+                    }}
+                  >
+                    Bayar Sekarang ↗
+                  </a>
                 </div>
               )}
 

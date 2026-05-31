@@ -96,12 +96,31 @@ export async function POST(request: Request) {
       updates.cancel_reason = 'Pembayaran gagal/kedaluwarsa'
     }
 
-    // Get the order first to check current status
-    const { data: order } = await supabase
+    // Get the order first to check current status.
+    // We look up by payment_reference (which stores unique merchantOrderId) first,
+    // and fall back to order_number (stripped merchantOrderId) if needed.
+    let order = null
+    const { data: orderRef } = await supabase
       .from('orders')
       .select('id, status')
-      .eq('order_number', merchant_ref)
-      .single()
+      .eq('payment_reference', merchantOrderId)
+      .maybeSingle()
+    
+    order = orderRef
+
+    if (!order) {
+      const originalOrderNumber = merchantOrderId.includes('_')
+        ? merchantOrderId.split('_')[0]
+        : merchantOrderId
+
+      const { data: orderNum } = await supabase
+        .from('orders')
+        .select('id, status')
+        .eq('order_number', originalOrderNumber)
+        .maybeSingle()
+      
+      order = orderNum
+    }
 
     if (!order) {
       const dummyIds = ['YOUR_ORDER_ID', 'order-12345', 'test-transaction-123']
