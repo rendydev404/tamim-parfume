@@ -75,8 +75,10 @@ export async function GET(request: NextRequest) {
 
       channels.push({
         ...channelDef,
-        // Use the official image from Duitku API if available
-        icon_url: method.paymentImage || channelDef.icon_url,
+        // Use the official image from Duitku API if available, but strictly keep QRIS logo for QRIS channel
+        icon_url: channelDef.code === 'qris'
+          ? '/images/payment/qris.svg'
+          : (method.paymentImage || channelDef.icon_url),
         active: true,
         fee_customer: { flat: parseInt(method.totalFee || '0', 10), percent: 0 },
       })

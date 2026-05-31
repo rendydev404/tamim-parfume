@@ -383,23 +383,27 @@ export default function PaymentPage() {
                   <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '14px' }}>
                     Scan QR Code
                   </p>
-                  {/* If qr_url is a Duitku payment page URL (not an image), show it in iframe */}
+                  {/* If qr_url is a Duitku payment page URL (not an image), show redirect simulator panel */}
                   {transaction.qr_url.includes('sandbox.duitku.com') || transaction.qr_url.includes('duitku.com/topup') ? (
-                    <>
-                      <iframe
-                        src={transaction.qr_url}
-                        style={{ width: '100%', minHeight: '400px', border: 'none', borderRadius: '12px', background: '#fff' }}
-                        title="Duitku QRIS Payment"
-                      />
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', padding: '16px', gap: '12px', textAlign: 'center', background: 'var(--color-bg-secondary)', borderRadius: '12px', border: '1px solid var(--color-border)' }}>
+                      <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', margin: 0, lineHeight: 1.5 }}>
+                        Pembayaran QRIS menggunakan Duitku Sandbox memerlukan pengalihan ke halaman simulator pembayaran Duitku.
+                      </p>
                       <a
                         href={transaction.qr_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        style={{ ...styles.copyBtn, marginTop: '14px', background: 'var(--color-bg-secondary)', color: 'var(--color-text-secondary)', border: '1px solid var(--color-border)', textDecoration: 'none' }}
+                        style={{
+                          ...styles.btnPrimary,
+                          textDecoration: 'none',
+                          width: '100%',
+                          maxWidth: '280px',
+                          marginTop: '6px',
+                        }}
                       >
-                        Buka Halaman Pembayaran ↗
+                        Buka Simulator Pembayaran ↗
                       </a>
-                    </>
+                    </div>
                   ) : (
                     <div style={styles.qrFrame}>
                       <img
