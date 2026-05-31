@@ -354,23 +354,20 @@ export async function createTransaction(params: CreateTransactionParams) {
           console.log('[Duitku] Using QRIS code from API:', paymentMethod)
         }
       } else if (paymentMethod) {
-        // Verify the hardcoded code is actually available
+        // Check if the hardcoded code is available (soft check — just log warning)
         const found = availableMethods.find(
           (m: { paymentMethod: string }) => m.paymentMethod === paymentMethod
         )
         if (!found) {
-          console.warn(`[Duitku] Payment method ${paymentMethod} (${params.method}) not available in sandbox. Available:`,
+          console.warn(`[Duitku] Payment method ${paymentMethod} (${params.method}) may not be available. Available:`,
             availableMethods.map((m: { paymentMethod: string; paymentName: string }) => `${m.paymentMethod}=${m.paymentName}`).join(', ')
           )
-          throw new Error(`Metode pembayaran ${PAYMENT_NAMES[params.method] || params.method} tidak tersedia di sandbox Duitku. Silakan pilih metode lain.`)
+          // Still proceed — Duitku v2/inquiry will give us a proper error if it really isn't available
         }
       }
     }
   } catch (fetchErr) {
-    // If it's our own "not available" error, re-throw it
-    if (fetchErr instanceof Error && fetchErr.message.includes('tidak tersedia')) {
-      throw fetchErr
-    }
+    // Non-blocking: just log and proceed with default code
     console.warn('[Duitku] Could not fetch available methods, proceeding with default code:', fetchErr)
   }
 
@@ -405,7 +402,15 @@ export async function createTransaction(params: CreateTransactionParams) {
     }))
   }
 
-  console.log('[Duitku debug] Requesting Duitku API with uniqueOrderId:', uniqueOrderId, 'paymentMethod:', paymentMethod)
+  console.log('[Duitku debug] Requesting Duitku API:', {
+    url: `${DUITKU_API_URL}/api/merchant/v2/inquiry`,
+    uniqueOrderId,
+    paymentMethod,
+    amount: roundedAmount,
+    merchantCode: DUITKU_MERCHANT_CODE,
+    callbackUrl: params.callbackUrl,
+    returnUrl: params.returnUrl,
+  })
 
   const res = await fetch(`${DUITKU_API_URL}/api/merchant/v2/inquiry`, {
     method: 'POST',

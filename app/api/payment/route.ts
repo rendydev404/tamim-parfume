@@ -15,7 +15,11 @@ export async function POST(request: Request) {
       items,
     } = body
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    // Use the actual request URL to determine the app URL for callbacks
+    const requestUrl = new URL(request.url)
+    const appUrl = `${requestUrl.protocol}//${requestUrl.host}`
+
+    console.log('[Payment] Creating transaction:', { method, orderNumber, amount, appUrl })
 
     const transaction = await createTransaction({
       method,
@@ -31,9 +35,10 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, data: transaction })
   } catch (error) {
-    console.error('Payment error:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    console.error('Payment error:', errorMessage, error)
     return NextResponse.json(
-      { success: false, error: 'Failed to create payment' },
+      { success: false, error: errorMessage },
       { status: 500 }
     )
   }
