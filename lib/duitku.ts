@@ -613,26 +613,74 @@ export async function getTransactionDetail(reference: string) {
 
   const expiredTime = Math.floor(Date.now() / 1000) + 24 * 60 * 60
 
+  // Fetch customer details from Database
+  let customerName = ''
+  let customerPhone = ''
+  let customerEmail = ''
+
+  try {
+    const { createClient } = await import('@/lib/supabase/server')
+    const supabase = await createClient()
+    const { data: order } = await supabase
+      .from('orders')
+      .select('recipient_name, recipient_phone, user_id')
+      .eq('order_number', originalOrderNumber)
+      .single()
+      
+    if (order) {
+      customerName = order.recipient_name
+      customerPhone = order.recipient_phone
+      
+      if (order.user_id) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('email')
+          .eq('id', order.user_id)
+          .single()
+        if (profile) {
+          customerEmail = profile.email || ''
+        }
+      }
+    }
+  } catch (dbErr) {
+    console.error('[Duitku] Failed to fetch customer details for real transaction status:', dbErr)
+  }
+
+  // Construct QR URL / Pay URL for QRIS or other redirect methods in sandbox
+  let payUrl = ''
+  let qrUrl = json.qrCode || ''
+  if (clientMethod === 'qris') {
+    const duitkuRef = json.reference || ''
+    if (duitkuRef) {
+      const baseUrl = DUITKU_API_URL.includes('sandbox')
+        ? 'https://sandbox.duitku.com/topup/selectPayment.aspx'
+        : 'https://passport.duitku.com/webapi/selectPayment.aspx'
+      payUrl = `${baseUrl}?reference=${duitkuRef}`
+      qrUrl = payUrl
+    }
+  }
+
   return {
     reference,
-    merchant_ref: merchantOrderId,
+    merchant_ref: originalOrderNumber,
     payment_selection_type: 'direct',
     payment_method: clientMethod,
     payment_name: PAYMENT_NAMES[clientMethod] || clientMethod,
-    customer_name: '',
-    customer_email: '',
-    customer_phone: '',
+    customer_name: customerName,
+    customer_email: customerEmail,
+    customer_phone: customerPhone,
     amount: parseFloat(json.amount || '0'),
     fee_customer: 0,
     fee_merchant: 0,
     total_fee: 0,
     amount_received: parseFloat(json.amount || '0'),
     pay_code: json.vaNumber || '',
+    pay_url: payUrl,
     checkout_url: `/payment/${reference}`,
     status,
     expired_time: expiredTime,
-    qr_url: json.qrCode || '',
-    instructions: getPaymentInstructions(clientMethod, json.vaNumber || ''),
+    qr_url: qrUrl,
+    instructions: getPaymentInstructions(clientMethod, json.vaNumber || payUrl),
   }
 }
 
