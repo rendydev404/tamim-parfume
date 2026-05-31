@@ -395,11 +395,11 @@ export async function createTransaction(params: CreateTransactionParams) {
     expiryPeriod: 1440, // 24 hours
     paymentMethod,
     customerVaName: params.customerName.substring(0, 30),
-    itemDetails: params.orderItems.map(item => ({
-      name: item.name.substring(0, 50),
-      price: Math.round(item.price),
-      quantity: item.quantity
-    }))
+    itemDetails: [{
+      name: `Order #${params.merchantRef}`.substring(0, 50),
+      price: roundedAmount,
+      quantity: 1
+    }]
   }
 
   console.log('[Duitku debug] Requesting Duitku API:', {
