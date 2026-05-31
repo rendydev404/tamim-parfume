@@ -634,11 +634,18 @@ function CheckoutContent() {
           const payment = await paymentRes.json()
           if (payment.data?.reference) {
             paymentReference = payment.data.reference
+            // Store pay_code, qr_url, pay_url as JSON in payment_url
+            // because Duitku's transactionStatus API does NOT return these fields
+            const paymentDetails = JSON.stringify({
+              pay_code: payment.data.pay_code || '',
+              qr_url: payment.data.qr_url || '',
+              pay_url: payment.data.pay_url || '',
+            })
             await supabase
               .from('orders')
               .update({
                 payment_reference: payment.data.reference,
-                payment_url: payment.data.checkout_url,
+                payment_url: paymentDetails,
               })
               .eq('id', order.id)
           }

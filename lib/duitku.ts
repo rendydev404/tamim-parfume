@@ -610,18 +610,21 @@ export async function getTransactionDetail(reference: string) {
 
   const expiredTime = Math.floor(Date.now() / 1000) + 24 * 60 * 60
 
-  // Fetch customer and order details from Database
+  // Fetch customer, order details, and persisted payment data from Database
   let customerName = ''
   let customerPhone = ''
   let customerEmail = ''
   let dbPaymentMethod = ''
+  let dbPayCode = ''
+  let dbQrUrl = ''
+  let dbPayUrl = ''
 
   try {
     const { createClient } = await import('@/lib/supabase/server')
     const supabase = await createClient()
     const { data: order } = await supabase
       .from('orders')
-      .select('recipient_name, recipient_phone, user_id, payment_method')
+      .select('recipient_name, recipient_phone, user_id, payment_method, payment_url')
       .eq('order_number', originalOrderNumber)
       .single()
       
@@ -629,6 +632,18 @@ export async function getTransactionDetail(reference: string) {
       customerName = order.recipient_name
       customerPhone = order.recipient_phone
       dbPaymentMethod = order.payment_method || ''
+      
+      // Parse persisted payment details from payment_url JSON
+      if (order.payment_url) {
+        try {
+          const parsed = JSON.parse(order.payment_url)
+          dbPayCode = parsed.pay_code || ''
+          dbQrUrl = parsed.qr_url || ''
+          dbPayUrl = parsed.pay_url || ''
+        } catch {
+          // Old format (plain URL string), ignore
+        }
+      }
       
       if (order.user_id) {
         const { data: profile } = await supabase
@@ -642,24 +657,27 @@ export async function getTransactionDetail(reference: string) {
       }
     }
   } catch (dbErr) {
-    console.error('[Duitku] Failed to fetch customer details for real transaction status:', dbErr)
+    console.error('[Duitku] Failed to fetch order details:', dbErr)
   }
 
-  // Determine client method (strictly prefer database value, fallback to Duitku code mapping)
+  // Determine client method: database is the source of truth
   const clientMethod = dbPaymentMethod || DUITKU_CODE_TO_NAME[json.paymentMethod] || 'qris'
 
-  // Construct QR URL / Pay URL for QRIS or other redirect methods in sandbox
-  let payUrl = ''
-  let qrUrl = json.qrCode || ''
-  
+  // Use persisted pay_code (Duitku transactionStatus API does NOT return vaNumber)
+  const payCode = dbPayCode || json.vaNumber || ''
+
+  // For sandbox, set pay_url to the demo simulator page
+  let payUrl = dbPayUrl
   if (DUITKU_API_URL.includes('sandbox')) {
     payUrl = 'https://sandbox.duitku.com/payment/demo/demosuccesstransaction.aspx'
-    
-    if (clientMethod === 'qris') {
-      // Generate a mock QRIS code for visual preview in sandbox
-      const mockQrData = `00020101021226380010ID.CO.QRIS.WWW0215ID10202103131015204000053033605802ID5913Tamim%20Parfume6005Bogor61051615262190115${json.reference || reference}`
-      qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(mockQrData)}`
-    }
+  }
+
+  // Use persisted qr_url (Duitku transactionStatus API does NOT return qrCode)
+  let qrUrl = dbQrUrl || json.qrCode || ''
+  if (!qrUrl && clientMethod === 'qris' && DUITKU_API_URL.includes('sandbox')) {
+    // Fallback: generate mock QR for sandbox QRIS if nothing was persisted
+    const mockQrData = `00020101021226380010ID.CO.QRIS.WWW0215ID10202103131015204000053033605802ID5913Tamim%20Parfume6005Bogor61051615262190115${json.reference || reference}`
+    qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(mockQrData)}`
   }
 
   return {
@@ -676,13 +694,13 @@ export async function getTransactionDetail(reference: string) {
     fee_merchant: 0,
     total_fee: 0,
     amount_received: parseFloat(json.amount || '0'),
-    pay_code: json.vaNumber || '',
+    pay_code: payCode,
     pay_url: payUrl,
     checkout_url: `/payment/${reference}`,
     status,
     expired_time: expiredTime,
     qr_url: qrUrl,
-    instructions: getPaymentInstructions(clientMethod, json.vaNumber || payUrl),
+    instructions: getPaymentInstructions(clientMethod, payCode || payUrl),
   }
 }
 
