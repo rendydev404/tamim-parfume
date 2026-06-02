@@ -401,90 +401,11 @@ export default function PaymentPage() {
                 </div>
               )}
 
-              {/* Duitku Sandbox Simulator — only for QRIS */}
-              {transaction.pay_url && transaction.pay_url.includes('demosuccesstransaction.aspx') && transaction.qr_url && (
-                <div style={{
-                  padding: '20px', borderRadius: '14px', marginBottom: '12px',
-                  border: '1.5px dashed #0284c7', background: 'rgba(14, 165, 233, 0.05)',
-                  display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'center',
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#0284c7', fontSize: '13px', fontWeight: 700 }}>
-                    <ShieldCheck size={16} />
-                    <span>🔧 SIMULATOR DUITKU SANDBOX</span>
-                  </div>
-                  <p style={{ fontSize: '12.5px', color: 'var(--color-text-secondary)', textAlign: 'center', lineHeight: 1.6, margin: 0 }}>
-                    Untuk mensimulasikan pembayaran sukses pada mode Sandbox, silakan salin <strong>Merchant Order ID</strong> di bawah ini, buka Halaman Simulator, lalu tempelkan.
-                  </p>
-                  
-                  <div style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    width: '100%', background: 'var(--color-bg-secondary)', padding: '10px 14px',
-                    borderRadius: '8px', border: '1px solid var(--color-border)', gap: '10px'
-                  }}>
-                    <span style={{ fontFamily: 'monospace', fontSize: '13px', fontWeight: 600, color: 'var(--color-text)', wordBreak: 'break-all' }}>
-                      {transaction.reference}
-                    </span>
-                    <button
-                      onClick={() => copyToClipboard(transaction.reference, 'code')}
-                      style={{
-                        ...styles.copyBtn,
-                        background: '#111',
-                        color: '#fff',
-                        padding: '6px 12px',
-                      }}
-                    >
-                      <Copy size={12} /> Salin
-                    </button>
-                  </div>
 
-                  <a
-                    href={transaction.pay_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      ...styles.btnPrimary,
-                      textDecoration: 'none',
-                      marginTop: '4px',
-                      background: 'linear-gradient(135deg, #0ea5e9, #0284c7)',
-                      color: '#fff',
-                      fontSize: '13px',
-                      padding: '10px 20px',
-                      boxShadow: '0 4px 12px rgba(2,132,199,0.2)',
-                      border: 'none',
-                    }}
-                  >
-                    Buka Halaman Simulator Pembayaran ↗
-                  </a>
-                </div>
-              )}
 
-              {/* Sandbox simulator button for VA/non-QRIS methods — just a simple button */}
-              {transaction.pay_url && transaction.pay_url.includes('demosuccesstransaction.aspx') && !transaction.qr_url && payCode && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center', marginBottom: '12px' }}>
-                  <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', textAlign: 'center', margin: 0 }}>
-                    Mode Sandbox — Simulasikan pembayaran:
-                  </p>
-                  <a
-                    href={transaction.pay_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      ...styles.btnPrimary,
-                      textDecoration: 'none',
-                      background: 'linear-gradient(135deg, #0ea5e9, #0284c7)',
-                      color: '#fff',
-                      fontSize: '13px',
-                      padding: '10px 20px',
-                      boxShadow: '0 4px 12px rgba(2,132,199,0.2)',
-                      border: 'none',
-                    }}
-                  >
-                    Buka Halaman Simulator Pembayaran ↗
-                  </a>
-                </div>
-              )}
 
-              {/* Pay URL redirect (for methods where Duitku provides a payment page) */}
+
+              {/* Pay URL redirect (for methods that redirect to an external payment page) */}
               {transaction.pay_url && !transaction.qr_url && !payCode && (
                 <div style={{ ...styles.card, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
                   <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', textAlign: 'center', lineHeight: 1.5, margin: 0 }}>

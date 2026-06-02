@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getTransactionDetail } from '@/lib/duitku'
+import { getTransactionDetail } from '@/lib/midtrans'
 import { createClient } from '@/lib/supabase/server'
 
 export async function GET(request: NextRequest) {

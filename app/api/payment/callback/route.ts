@@ -1,51 +1,49 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { verifyCallbackSignature } from '@/lib/duitku'
+import { verifyCallbackSignature } from '@/lib/midtrans'
 import { autoBookBiteshipShipment } from '@/lib/biteship'
 
 export async function POST(request: Request) {
   try {
-    let merchantCode = ''
-    let amount = ''
-    let merchantOrderId = ''
-    let signature = ''
-    let resultCode = ''
-    let reference = ''
-    let paymentCode = ''
+    let orderId = ''
+    let statusCode = ''
+    let grossAmount = ''
+    let signatureKey = ''
+    let transactionStatus = ''
 
     const contentType = request.headers.get('content-type') || ''
     if (contentType.includes('application/x-www-form-urlencoded')) {
       const text = await request.text()
       const params = new URLSearchParams(text)
-      merchantCode = params.get('merchantCode') || ''
-      amount = params.get('amount') || ''
-      merchantOrderId = params.get('merchantOrderId') || ''
-      signature = params.get('signature') || ''
-      resultCode = params.get('resultCode') || ''
-      reference = params.get('reference') || ''
-      paymentCode = params.get('paymentCode') || ''
+      orderId = params.get('order_id') || params.get('merchantOrderId') || ''
+      statusCode = params.get('status_code') || ''
+      grossAmount = params.get('gross_amount') || params.get('amount') || ''
+      signatureKey = params.get('signature_key') || params.get('signature') || ''
+      transactionStatus = params.get('transaction_status') || ''
+
+      // Support Duitku-format form submissions (mock simulator)
+      if (!transactionStatus && params.get('resultCode')) {
+        const resultCode = params.get('resultCode') || ''
+        if (resultCode === '00') transactionStatus = 'settlement'
+        else transactionStatus = 'pending'
+        statusCode = statusCode || '200'
+        grossAmount = grossAmount || params.get('amount') || ''
+      }
     } else {
-      // JSON fallback (such as ping or custom JSON testing)
+      // JSON (standard Midtrans notification)
       try {
         const json = await request.json()
-        merchantCode = json.merchantCode || ''
-        amount = String(json.amount || '')
-        merchantOrderId = json.merchantOrderId || json.order_id || ''
-        signature = json.signature || json.signature_key || ''
-        resultCode = json.resultCode || ''
-        reference = json.reference || ''
-        paymentCode = json.paymentCode || ''
+        orderId = json.order_id || json.merchantOrderId || ''
+        statusCode = json.status_code || ''
+        grossAmount = String(json.gross_amount || json.amount || '')
+        signatureKey = json.signature_key || json.signature || ''
+        transactionStatus = json.transaction_status || ''
 
-        // Map Midtrans fields if sent from old client simulation
-        if (!resultCode && json.transaction_status) {
-          if (json.transaction_status === 'settlement' || json.transaction_status === 'capture') {
-            resultCode = '00'
-          } else {
-            resultCode = '01'
-          }
-        }
-        if (!amount && json.gross_amount) {
-          amount = String(json.gross_amount)
+        // Map Duitku-style fields if present (for backwards compatibility)
+        if (!transactionStatus && json.resultCode) {
+          if (json.resultCode === '00') transactionStatus = 'settlement'
+          else transactionStatus = 'pending'
+          statusCode = statusCode || '200'
         }
       } catch (e) {
         console.log('Empty or invalid request received')
@@ -53,38 +51,41 @@ export async function POST(request: Request) {
       }
     }
 
-    if (!merchantOrderId || !amount || !signature || !resultCode) {
+    if (!orderId || !grossAmount || !signatureKey) {
       return new Response('Invalid parameters', { status: 400 })
     }
 
-    // Verify signature key
+    // Verify Midtrans signature key
     const isSignatureValid = await verifyCallbackSignature(
-      merchantOrderId,
-      amount,
-      signature
+      orderId,
+      statusCode,
+      grossAmount,
+      signatureKey
     )
 
     if (!isSignatureValid) {
-      console.error('Invalid signature for order:', merchantOrderId)
+      console.error('Invalid signature for order:', orderId)
       return new Response('Invalid signature', { status: 401 })
     }
 
-    // Map Duitku status code to generic status
+    // Map Midtrans transaction status to generic status
     let status = 'UNPAID'
-    if (resultCode === '00') {
+    if (transactionStatus === 'settlement' || transactionStatus === 'capture') {
       status = 'PAID'
-    } else if (resultCode === '01') {
-      status = 'UNPAID'
-    } else {
+    } else if (transactionStatus === 'expire') {
+      status = 'EXPIRED'
+    } else if (transactionStatus === 'cancel' || transactionStatus === 'deny') {
       status = 'FAILED'
+    } else if (transactionStatus === 'pending') {
+      status = 'UNPAID'
     }
 
-    const merchant_ref = merchantOrderId
+    const merchant_ref = orderId
     const supabase = await createClient()
 
     let orderStatus = 'pending_payment'
     if (status === 'PAID') orderStatus = 'paid'
-    else if (status === 'FAILED') orderStatus = 'cancelled'
+    else if (status === 'FAILED' || status === 'EXPIRED') orderStatus = 'cancelled'
 
     const updates: Record<string, unknown> = {
       status: orderStatus,
@@ -97,21 +98,20 @@ export async function POST(request: Request) {
     }
 
     // Get the order first to check current status.
-    // We look up by payment_reference (which stores unique merchantOrderId) first,
-    // and fall back to order_number (stripped merchantOrderId) if needed.
+    // We look up by payment_reference first, then fall back to order_number.
     let order = null
     const { data: orderRef } = await supabase
       .from('orders')
       .select('id, status')
-      .eq('payment_reference', merchantOrderId)
+      .eq('payment_reference', orderId)
       .maybeSingle()
     
     order = orderRef
 
     if (!order) {
-      const originalOrderNumber = merchantOrderId.includes('_')
-        ? merchantOrderId.split('_')[0]
-        : merchantOrderId
+      const originalOrderNumber = orderId.includes('_')
+        ? orderId.split('_')[0]
+        : orderId
 
       const { data: orderNum } = await supabase
         .from('orders')
@@ -125,9 +125,9 @@ export async function POST(request: Request) {
     if (!order) {
       const dummyIds = ['YOUR_ORDER_ID', 'order-12345', 'test-transaction-123']
       if (
-        dummyIds.includes(merchantOrderId) ||
-        merchantOrderId.toLowerCase().includes('test') ||
-        merchantOrderId.startsWith('MOCK-')
+        dummyIds.includes(orderId) ||
+        orderId.toLowerCase().includes('test') ||
+        orderId.startsWith('MOCK-')
       ) {
         return new Response('OK', { status: 200 })
       }
@@ -152,15 +152,15 @@ export async function POST(request: Request) {
     // Trigger automatic Biteship courier booking if status is now 'paid'
     if (orderStatus === 'paid') {
       try {
-        console.log(`[Duitku Callback] 🚀 Automating courier booking for order: ${order.id}`)
+        console.log(`[Midtrans Callback] 🚀 Automating courier booking for order: ${order.id}`)
         const bookingRes = await autoBookBiteshipShipment(order.id, supabase)
         if (bookingRes.success) {
-          console.log(`[Duitku Callback] ✅ Courier booked successfully! Resi: ${bookingRes.trackingNumber}`)
+          console.log(`[Midtrans Callback] ✅ Courier booked successfully! Resi: ${bookingRes.trackingNumber}`)
         } else {
-          console.error(`[Duitku Callback] ❌ Courier booking failed: ${bookingRes.error}`)
+          console.error(`[Midtrans Callback] ❌ Courier booking failed: ${bookingRes.error}`)
         }
       } catch (bookErr) {
-        console.error('[Duitku Callback] 💥 Error in autoBookBiteshipShipment:', bookErr)
+        console.error('[Midtrans Callback] 💥 Error in autoBookBiteshipShipment:', bookErr)
       }
     }
 
@@ -228,7 +228,7 @@ export async function POST(request: Request) {
       }
     }
 
-    // Duitku expects raw "OK" response
+    // Midtrans expects HTTP 200 response
     return new Response('OK', {
       status: 200,
       headers: { 'Content-Type': 'text/plain' }

@@ -1,99 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAvailablePaymentMethods } from '@/lib/duitku'
 
-// Map Duitku paymentMethod codes to our internal channel definitions
-// Only include the methods we want to show to the user
-const CODE_TO_CHANNEL: Record<string, {
-  group: string
-  code: string
-  name: string
-  type: string
-  icon_url: string
-}> = {
-  BC: { group: 'Virtual Account', code: 'bca', name: 'BCA Virtual Account', type: 'direct', icon_url: '/images/payment/bca.svg' },
-  I1: { group: 'Virtual Account', code: 'bni', name: 'BNI Virtual Account', type: 'direct', icon_url: '/images/payment/bni.svg' },
-  BR: { group: 'Virtual Account', code: 'bri', name: 'BRI Virtual Account', type: 'direct', icon_url: '/images/payment/bri.svg' },
-  M2: { group: 'Virtual Account', code: 'mandiri', name: 'Mandiri Bill Payment', type: 'direct', icon_url: '/images/payment/mandiri.svg' },
-  BT: { group: 'Virtual Account', code: 'permata', name: 'Permata Virtual Account', type: 'direct', icon_url: '/images/payment/permata.svg' },
-  B1: { group: 'Virtual Account', code: 'cimb', name: 'CIMB Niaga Virtual Account', type: 'direct', icon_url: '/images/payment/cimb.svg' },
-  VA: { group: 'Virtual Account', code: 'maybank', name: 'Maybank Virtual Account', type: 'direct', icon_url: '/images/payment/maybank.svg' },
-  // QRIS — all-in-one (works with GoPay, OVO, ShopeePay, DANA, LinkAja, etc.)
-  SP: { group: 'E-Wallet', code: 'qris', name: 'QRIS', type: 'direct', icon_url: '/images/payment/image.png' },
-  QR: { group: 'E-Wallet', code: 'qris', name: 'QRIS', type: 'direct', icon_url: '/images/payment/image.png' },
-  NQ: { group: 'E-Wallet', code: 'qris', name: 'QRIS', type: 'direct', icon_url: '/images/payment/image.png' },
-  DQ: { group: 'E-Wallet', code: 'qris', name: 'QRIS', type: 'direct', icon_url: '/images/payment/image.png' },
-  // E-Wallets (direct, not via QRIS)
-  DA: { group: 'E-Wallet', code: 'dana', name: 'DANA', type: 'direct', icon_url: '/images/payment/dana.svg' },
-  OV: { group: 'E-Wallet', code: 'ovo', name: 'OVO', type: 'direct', icon_url: '/images/payment/ovo.svg' },
-  // Retail / Convenience Store
-  FT: { group: 'Convenience Store', code: 'alfamart', name: 'Retail (Alfamart/Indomaret)', type: 'direct', icon_url: '/images/payment/alfamart.svg' },
-  AL: { group: 'Convenience Store', code: 'alfamart', name: 'Alfamart', type: 'direct', icon_url: '/images/payment/alfamart.svg' },
-  // Credit Card
-  VC: { group: 'Credit Card', code: 'credit_card', name: 'Kartu Kredit/Debit', type: 'direct', icon_url: '/images/payment/visa.svg' },
-}
-
-// Duitku codes to EXCLUDE — these are duplicate/unwanted methods
-// that clutter the payment selection (separate ShopeePay/LinkAja apps, etc.)
-const EXCLUDED_CODES = new Set([
-  'SA', // ShopeePay App (Jump App) — user should use QRIS instead
-  'LQ', // LinkAja QRIS — already covered by the main QRIS option
-  'LA', // LinkAja App PCT — already covered by QRIS
-  'GV', // Gudang Voucher — not relevant for parfume store
-  'AG', // Artha Graha VA — uncommon bank
-  'NC', // BNC VA — uncommon bank
-  'S1', // ShopeePay App — duplicate
-])
+// Midtrans supported payment channels
+// These are static since Midtrans Core API doesn't have a "list channels" endpoint.
+// Enable/disable channels based on your Midtrans dashboard configuration.
+const MIDTRANS_CHANNELS = [
+  // Virtual Account
+  { group: 'Virtual Account', code: 'bca', name: 'BCA Virtual Account', type: 'direct', icon_url: '/images/payment/bca.svg', active: true, fee_customer: { flat: 0, percent: 0 } },
+  { group: 'Virtual Account', code: 'bni', name: 'BNI Virtual Account', type: 'direct', icon_url: '/images/payment/bni.svg', active: true, fee_customer: { flat: 0, percent: 0 } },
+  { group: 'Virtual Account', code: 'bri', name: 'BRI Virtual Account', type: 'direct', icon_url: '/images/payment/bri.svg', active: true, fee_customer: { flat: 0, percent: 0 } },
+  { group: 'Virtual Account', code: 'mandiri', name: 'Mandiri Bill Payment', type: 'direct', icon_url: '/images/payment/mandiri.svg', active: true, fee_customer: { flat: 0, percent: 0 } },
+  // E-Wallet (QRIS)
+  { group: 'E-Wallet', code: 'qris', name: 'QRIS', type: 'direct', icon_url: '/images/payment/image.png', active: true, fee_customer: { flat: 0, percent: 0 } },
+  // Convenience Store
+  { group: 'Convenience Store', code: 'alfamart', name: 'Alfamart', type: 'direct', icon_url: '/images/payment/alfamart.svg', active: true, fee_customer: { flat: 0, percent: 0 } },
+  { group: 'Convenience Store', code: 'indomaret', name: 'Indomaret', type: 'direct', icon_url: '/images/payment/indomaret.svg', active: true, fee_customer: { flat: 0, percent: 0 } },
+]
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url)
-    const amount = parseInt(searchParams.get('amount') || '10000', 10)
-
-    // Dynamically fetch available payment methods from Duitku
-    const duitkuMethods = await getAvailablePaymentMethods(amount)
-
-    if (duitkuMethods.length === 0) {
-      // Fallback: return default channels if API call fails
-      const defaultChannels = [
-        { group: 'Virtual Account', code: 'bca', name: 'BCA Virtual Account', type: 'direct', icon_url: '/images/payment/bca.svg', active: true, fee_customer: { flat: 0, percent: 0 } },
-        { group: 'Virtual Account', code: 'bni', name: 'BNI Virtual Account', type: 'direct', icon_url: '/images/payment/bni.svg', active: true, fee_customer: { flat: 0, percent: 0 } },
-        { group: 'Virtual Account', code: 'bri', name: 'BRI Virtual Account', type: 'direct', icon_url: '/images/payment/bri.svg', active: true, fee_customer: { flat: 0, percent: 0 } },
-        { group: 'Virtual Account', code: 'mandiri', name: 'Mandiri Bill Payment', type: 'direct', icon_url: '/images/payment/mandiri.svg', active: true, fee_customer: { flat: 0, percent: 0 } },
-        { group: 'E-Wallet', code: 'qris', name: 'QRIS', type: 'direct', icon_url: '/images/payment/image.png', active: true, fee_customer: { flat: 0, percent: 0 } },
-      ]
-      return NextResponse.json({ success: true, data: defaultChannels })
-    }
-
-    // Transform Duitku response into our channel format
-    const seenCodes = new Set<string>()
-    const channels = []
-
-    for (const method of duitkuMethods) {
-      // Skip excluded payment method codes
-      if (EXCLUDED_CODES.has(method.paymentMethod)) continue
-
-      const channelDef = CODE_TO_CHANNEL[method.paymentMethod]
-      if (!channelDef) {
-        // Unknown payment method code — skip it (don't show "Lainnya" category)
-        continue
-      }
-
-      // Avoid duplicates (e.g., multiple QRIS codes like SP, QR, NQ, DQ)
-      if (seenCodes.has(channelDef.code)) continue
-      seenCodes.add(channelDef.code)
-
-      channels.push({
-        ...channelDef,
-        // For QRIS: always use our local icon (Duitku returns ShopeePay icon otherwise)
-        // For others: use Duitku API icon (has correct bank logos) with local fallback
-        icon_url: channelDef.code === 'qris'
-          ? '/images/payment/image.png'
-          : (method.paymentImage || channelDef.icon_url),
-        active: true,
-        fee_customer: { flat: parseInt(method.totalFee || '0', 10), percent: 0 },
-      })
-    }
-
+    // Return Midtrans payment channels (static list)
+    // Filter only active channels
+    const channels = MIDTRANS_CHANNELS.filter(ch => ch.active)
     return NextResponse.json({ success: true, data: channels })
   } catch (error) {
     console.error('Payment channels error:', error)
