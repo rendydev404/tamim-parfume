@@ -622,11 +622,15 @@ function CheckoutContent() {
             customerName: activeAddr.recipient_name,
             customerEmail: user.email,
             customerPhone: activeAddr.phone,
-            items: items.map((item) => ({
-              name: item.name,
-              price: item.price,
-              quantity: item.quantity,
-            })),
+            items: [
+              ...items.map((item) => ({
+                name: item.name,
+                price: item.price,
+                quantity: item.quantity,
+              })),
+              ...(shippingCost > 0 ? [{ name: 'Ongkos Kirim', price: shippingCost, quantity: 1 }] : []),
+              ...(discount > 0 ? [{ name: 'Diskon Kupon', price: -discount, quantity: 1 }] : []),
+            ],
           }),
         })
 

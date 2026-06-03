@@ -1,6 +1,3 @@
-// ============================================================
-// TAMIM PARFUME — Midtrans Payment Gateway Helper (Core API)
-// ============================================================
 
 const MIDTRANS_API_URL = process.env.MIDTRANS_API_URL || 'https://api.sandbox.midtrans.com/v2'
 const MIDTRANS_SERVER_KEY = process.env.MIDTRANS_SERVER_KEY || ''
@@ -197,10 +194,10 @@ export async function createTransaction(params: CreateTransactionParams) {
       }
       break
     case 'qris':
-      payment_type = 'qris'
+      payment_type = 'gopay'
       customPayload = {
-        qris: {
-          acquirer: 'gopay',
+        gopay: {
+          enable_callback: true,
         },
       }
       break
@@ -218,24 +215,56 @@ export async function createTransaction(params: CreateTransactionParams) {
       throw new Error(`Unsupported payment method: ${params.method}`)
   }
 
-  const payload = {
-    payment_type,
-    transaction_details: {
-      order_id: params.merchantRef,
-      gross_amount: Math.round(params.amount),
-    },
-    item_details: params.orderItems.map((item, idx) => ({
+  // Build item_details, filtering out any items with non-positive prices (e.g. discount)
+  const itemDetails = params.orderItems
+    .filter(item => item.price > 0)
+    .map((item, idx) => ({
       id: `item-${idx + 1}`,
       price: Math.round(item.price),
       quantity: item.quantity,
       name: item.name.substring(0, 50),
-    })),
+    }))
+
+  // Calculate the sum of item_details
+  const itemTotal = itemDetails.reduce((sum, item) => sum + item.price * item.quantity, 0)
+  const grossAmount = Math.round(params.amount)
+
+  // If there's a difference (due to shipping, discount, rounding), add an adjustment item
+  const diff = grossAmount - itemTotal
+  if (diff > 0) {
+    itemDetails.push({
+      id: 'shipping',
+      price: diff,
+      quantity: 1,
+      name: 'Ongkos Kirim & Biaya Lainnya',
+    })
+  } else if (diff < 0) {
+    // Negative diff means discount is larger; add as separate discount line
+    // Midtrans doesn't support negative prices, so we redistribute across items
+    // by simply not sending item_details (let Midtrans use gross_amount only)
+    itemDetails.length = 0
+  }
+
+  // Add a short timestamp suffix to avoid Midtrans duplicate order_id errors on retry
+  const uniqueOrderId = `${params.merchantRef}_${Date.now().toString(36)}`
+
+  const payload: Record<string, any> = {
+    payment_type,
+    transaction_details: {
+      order_id: uniqueOrderId,
+      gross_amount: grossAmount,
+    },
     customer_details: {
       first_name: params.customerName,
       email: params.customerEmail,
       phone: params.customerPhone,
     },
     ...customPayload,
+  }
+
+  // Only include item_details if we have valid items that match gross_amount
+  if (itemDetails.length > 0) {
+    payload.item_details = itemDetails
   }
 
   const isPlaceholderKey = !MIDTRANS_SERVER_KEY || MIDTRANS_SERVER_KEY.includes('YOUR_SANDBOX_SERVER_KEY')
@@ -305,7 +334,7 @@ export async function createTransaction(params: CreateTransactionParams) {
   } else if (params.method === 'mandiri') {
     payCode = json.bill_key || '' // user will pay using bill_key and biller_code (70012)
   } else if (params.method === 'qris') {
-    qrUrl = json.actions?.find((a: any) => a.name === 'generate-qr-code')?.url || ''
+    qrUrl = json.actions?.find((a: any) => a.name === 'generate-qr-code')?.url || json.actions?.find((a: any) => a.name === 'deeplink-redirect')?.url || ''
   } else if (params.method === 'alfamart' || params.method === 'indomaret') {
     payCode = json.payment_code || ''
   }
@@ -457,9 +486,9 @@ export async function getTransactionDetail(reference: string) {
   } else if (json.payment_type === 'echannel') {
     clientMethod = 'mandiri'
     payCode = json.bill_key || ''
-  } else if (json.payment_type === 'qris') {
+  } else if (json.payment_type === 'qris' || json.payment_type === 'gopay') {
     clientMethod = 'qris'
-    qrUrl = json.actions?.find((a: any) => a.name === 'generate-qr-code')?.url || ''
+    qrUrl = json.actions?.find((a: any) => a.name === 'generate-qr-code')?.url || json.actions?.find((a: any) => a.name === 'deeplink-redirect')?.url || ''
   } else if (json.payment_type === 'cstore') {
     clientMethod = json.store || 'alfamart'
     payCode = json.payment_code || ''
