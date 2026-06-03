@@ -14,28 +14,66 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const detail = await getTransactionDetail(reference)
+    const detail: Record<string, any> = await getTransactionDetail(reference)
 
-    // Sync payment status to database when Midtrans reports PAID/EXPIRED/FAILED
+    // Midtrans status API doesn't return QR URL or actions after initial charge.
+    // Read stored payment details (qr_url, pay_code) from the database.
     if (detail && detail.merchant_ref) {
-      const paymentStatus = detail.status
-      let orderStatus: string | null = null
+      const supabase = await createClient()
 
-      if (paymentStatus === 'PAID') orderStatus = 'paid'
-      else if (paymentStatus === 'EXPIRED') orderStatus = 'cancelled'
-      else if (paymentStatus === 'FAILED') orderStatus = 'cancelled'
+      // Look up order by payment_reference or order_number
+      let order = null
+      const { data: orderByRef } = await supabase
+        .from('orders')
+        .select('id, status, payment_url, order_number')
+        .eq('payment_reference', reference)
+        .maybeSingle()
 
-      if (orderStatus) {
-        const supabase = await createClient()
-        
-        // Check current order status to avoid unnecessary updates
-        const { data: order } = await supabase
+      order = orderByRef
+
+      if (!order) {
+        // Try looking up by order_number (merchant_ref might have suffix)
+        const originalOrderNumber = detail.merchant_ref.includes('_')
+          ? detail.merchant_ref.split('_')[0]
+          : detail.merchant_ref
+
+        const { data: orderByNum } = await supabase
           .from('orders')
-          .select('id, status')
-          .eq('order_number', detail.merchant_ref)
-          .single()
+          .select('id, status, payment_url, order_number')
+          .eq('order_number', originalOrderNumber)
+          .maybeSingle()
 
-        if (order && order.status === 'pending_payment') {
+        order = orderByNum
+      }
+
+      if (order) {
+        // Merge stored payment details (qr_url, pay_code) into response
+        if (order.payment_url) {
+          try {
+            const storedDetails = JSON.parse(order.payment_url)
+            if (storedDetails.qr_url && !detail.qr_url) {
+              detail.qr_url = storedDetails.qr_url
+            }
+            if (storedDetails.pay_code && !detail.pay_code) {
+              detail.pay_code = storedDetails.pay_code
+            }
+            if (storedDetails.pay_url) {
+              detail.pay_url = storedDetails.pay_url
+            }
+          } catch {
+            // payment_url is not JSON, ignore
+          }
+        }
+
+        // Sync payment status
+        const paymentStatus = detail.status
+        let orderStatus: string | null = null
+
+        if (paymentStatus === 'PAID') orderStatus = 'paid'
+        else if (paymentStatus === 'EXPIRED') orderStatus = 'cancelled'
+        else if (paymentStatus === 'FAILED') orderStatus = 'cancelled'
+
+        if (orderStatus && order.status === 'pending_payment') {
           await supabase
             .from('orders')
             .update({
