@@ -44,6 +44,26 @@ flowchart LR
 
 ## Daftar Tabel Database
 
-| Nama Database | Daftar Tabel |
-|---|---|
-| Tamim Parfume (Supabase/PostgreSQL) | `profiles`, `password_reset_otps`, `categories`, `products`, `product_images`, `product_variants`, `orders`, `order_items`, `order_coupons`, `addresses`, `coupons`, `promos`, `wishlist`, `reviews`, `chat_conversations`, `chat_messages`, `store_settings`, `hero_slides`, `returns` |
+Sistem ini menggunakan database **Supabase (PostgreSQL)** dengan rincian Primary Key (PK) dan Foreign Key (FK) sebagai berikut:
+
+| Nama Tabel | Primary Key (PK) | Foreign Key (FK) |
+|---|---|---|
+| `profiles` | `id` | - |
+| `password_reset_otps` | `id` | `user_id` -> `profiles.id` |
+| `categories` | `id` | - |
+| `products` | `id` | `category_id` -> `categories.id` |
+| `product_images` | `id` | `product_id` -> `products.id` |
+| `product_variants` | `id` | `product_id` -> `products.id` |
+| `addresses` | `id` | `user_id` -> `profiles.id` |
+| `coupons` | `id` | - |
+| `promos` | `id` | - |
+| `orders` | `id` | `user_id` -> `profiles.id`<br>`address_id` -> `addresses.id` |
+| `order_items` | `id` | `order_id` -> `orders.id`<br>`product_id` -> `products.id`<br>`variant_id` -> `product_variants.id` |
+| `order_coupons` | `id` | `order_id` -> `orders.id`<br>`coupon_id` -> `coupons.id` |
+| `wishlist` | `id` | `user_id` -> `profiles.id`<br>`product_id` -> `products.id` |
+| `reviews` | `id` | `user_id` -> `profiles.id`<br>`product_id` -> `products.id`<br>`order_item_id` -> `order_items.id` |
+| `chat_conversations` | `id` | `user_id` -> `profiles.id` |
+| `chat_messages` | `id` | `conversation_id` -> `chat_conversations.id` |
+| `store_settings` | `id` | - |
+| `hero_slides` | `id` | - |
+| `returns` | `id` | `order_id` -> `orders.id`<br>`user_id` -> `profiles.id` |
