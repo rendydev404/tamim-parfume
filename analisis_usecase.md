@@ -44,22 +44,87 @@ flowchart LR
 
 ## Daftar Tabel Database
 
-1. `profiles`
-2. `password_reset_otps`
-3. `categories`
-4. `products`
-5. `product_images`
-6. `product_variants`
-7. `orders`
-8. `order_items`
-9. `order_coupons`
-10. `addresses`
-11. `coupons`
-12. `promos`
-13. `wishlist`
-14. `reviews`
-15. `chat_conversations`
-16. `chat_messages`
-17. `store_settings`
-18. `hero_slides`
-19. `returns`
+```mermaid
+erDiagram
+    profiles ||--o{ orders : places
+    profiles ||--o{ addresses : has
+    profiles ||--o{ wishlist : has
+    profiles ||--o{ reviews : writes
+    profiles ||--o{ chat_conversations : starts
+
+    categories ||--o{ products : contains
+
+    products ||--o{ product_images : has
+    products ||--o{ product_variants : has
+    products ||--o{ order_items : "ordered in"
+    products ||--o{ wishlist : "saved in"
+    products ||--o{ reviews : "reviewed in"
+    products ||--o{ hero_slides : "featured in"
+
+    orders ||--o{ order_items : contains
+    orders ||--o{ order_coupons : uses
+    orders ||--o{ reviews : "reviewed via"
+    orders ||--o{ returns : "has return"
+
+    coupons ||--o{ order_coupons : "applied as"
+
+    chat_conversations ||--o{ chat_messages : contains
+
+    profiles {
+        uuid id
+    }
+    password_reset_otps {
+        uuid id
+    }
+    categories {
+        uuid id
+    }
+    products {
+        uuid id
+    }
+    product_images {
+        uuid id
+    }
+    product_variants {
+        uuid id
+    }
+    orders {
+        uuid id
+    }
+    order_items {
+        uuid id
+    }
+    order_coupons {
+        uuid id
+    }
+    addresses {
+        uuid id
+    }
+    coupons {
+        uuid id
+    }
+    promos {
+        uuid id
+    }
+    wishlist {
+        uuid id
+    }
+    reviews {
+        uuid id
+    }
+    chat_conversations {
+        uuid id
+    }
+    chat_messages {
+        uuid id
+    }
+    store_settings {
+        uuid id
+    }
+    hero_slides {
+        uuid id
+    }
+    returns {
+        uuid id
+    }
+```
